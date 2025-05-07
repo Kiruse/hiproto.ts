@@ -1,0 +1,26 @@
+{
+  "name": "@kiruse/hiproto",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./types": "./dist/index.d.ts",
+    "./*": "./dist/*.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts"
+}
