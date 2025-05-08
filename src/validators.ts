@@ -21,6 +21,9 @@ export interface FieldValidator<T, S extends string> extends Validator<T, S> {
   index: number;
 }
 
+type ValCtor<Args extends any[], T, S extends string> = new (...args: Args) => FieldValidator<T, S>;
+type ValFactory<Args extends any[], T, S extends string> = (...args: Args) => FieldValidator<T, S>;
+
 // TODO: T needs to be further constrained before we can actually write this class
 export class MessageValidator<T> implements Validator<T, 'message'> {
   readonly [InferType]: T = undefined as any;
@@ -444,15 +447,21 @@ const fieldValidators = Object.fromEntries(Object.entries(valmap).map(([key, fn]
 ])) as Validators;
 
 export type Validators = {
-  [K in keyof typeof valmap]: (index: number) => FieldValidator<typeof valmap[K], K>;
+  [K in keyof typeof valmap]: typeof valmap[K] extends ValCtor<infer Args, infer T, infer S>
+    ? (...args: Args) => FieldValidator<T, S>
+    : never;
 };
 
 export type RepeatedPackedValidators = {
-  [K in Exclude<keyof Validators, 'bytes' | 'string' | 'message'>]: (index: number) => PackedRepeatedValidator<Validators[K]>;
+  [K in Exclude<keyof Validators, 'bytes' | 'string' | 'message'>]: Validators[K] extends ValFactory<infer Args, infer T, any>
+    ? (...args: Args) => PackedRepeatedValidator<T>
+    : never;
 };
 
 export type RepeatedExpandedValidators = {
-  [K in keyof Validators]: (index: number) => ExpandedRepeatedValidator<Validators[K]>;
+  [K in keyof Validators]: Validators[K] extends ValFactory<infer Args, infer T, any>
+    ? (...args: Args) => ExpandedRepeatedValidator<T>
+    : never;
 };
 
 export const v = {
