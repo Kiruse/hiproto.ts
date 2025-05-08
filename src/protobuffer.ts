@@ -76,9 +76,8 @@ export class ProtoBuffer {
     return this;
   }
 
-  writeVarint(value: number | bigint, zigzag = false) {
+  writeVarint(value: number | bigint) {
     value = BigInt(value);
-    const isNegative = value < 0n;
     if (value === 0n) {
       this.#assertSize(1);
       this.#buffer[this.#offset++] = 0;
@@ -87,9 +86,6 @@ export class ProtoBuffer {
     }
 
     if (bnAbs(value) >> 64n) throw new RangeError('Value has more than 64 bits');
-
-    // zigzag encoding for signed integers
-    if (zigzag) value = isNegative ? ((~value) << 1n) | 1n : value << 1n;
 
     value = BigInt.asUintN(64, value);
 
@@ -107,7 +103,7 @@ export class ProtoBuffer {
   }
 
   writeZigzag(value: number | bigint) {
-    return this.writeVarint(Number(value), true);
+    return this.writeVarint(getZigzag(BigInt(value)));
   }
 
   writeBytes(value: Uint8Array) {
@@ -238,12 +234,24 @@ export class ProtoBuffer {
 
   /** Computes the length of a signed and unsigned varint. */
   static varintLength(value: number | bigint): number {
-    throw new Error('Not yet implemented');
+    value = BigInt(value);
+    if (value === 0n) return 1;
+
+    if (bnAbs(value) >> 64n) throw new RangeError('Value has more than 64 bits');
+
+    value = BigInt.asUintN(64, value);
+    let length = 0;
+
+    while (value > 0n) {
+      value >>= 7n;
+      length++;
+    }
+    return length;
   }
 
   /** Computes the length of a signed, zigzag encoded varint. */
   static zigzagLength(value: number | bigint): number {
-    throw new Error('Not yet implemented');
+    return this.varintLength(getZigzag(BigInt(value)));
   }
 
   get offset() {
@@ -260,3 +268,4 @@ export class ProtoBuffer {
 }
 
 const bnAbs = (value: bigint) => value < 0n ? -value : value;
+const getZigzag = (value: bigint) => value < 0n ? ((~value) << 1n) | 1n : value << 1n;

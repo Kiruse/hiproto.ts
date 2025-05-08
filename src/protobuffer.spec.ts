@@ -19,7 +19,40 @@ describe('ProtoBuffer', () => {
       expect(buffer.readZigzag()).toBe(0n);
     });
 
-    test('positive', () => {
+    test('positive, zigzag', () => {
+      const getBuffer = (value: number) =>
+        new ProtoBuffer(new Uint8Array(10)).writeZigzag(value).seek(0);
+
+      let buffer = getBuffer(0);
+      expect(buffer.readZigzag()).toBe(0n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0x00]));
+
+      buffer = getBuffer(1);
+      expect(buffer.readZigzag()).toBe(1n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0x02]));
+
+      buffer = getBuffer(127);
+      expect(buffer.readZigzag()).toBe(127n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0xFE, 0x01]));
+
+      buffer = getBuffer(128);
+      expect(buffer.readZigzag()).toBe(128n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0x80, 0x02]));
+
+      buffer = getBuffer(255);
+      expect(buffer.readZigzag()).toBe(255n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0xFE, 0x03]));
+
+      buffer = getBuffer(256);
+      expect(buffer.readZigzag()).toBe(256n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0x80, 0x04]));
+
+      buffer = getBuffer(65535);
+      expect(buffer.readZigzag()).toBe(65535n);
+      expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0xFE, 0xFF, 0x07]));
+    });
+
+    test('positive, no zigzag', () => {
       const getBuffer = (value: number) =>
         new ProtoBuffer(new Uint8Array(10)).writeVarint(value).seek(0);
 
@@ -152,6 +185,44 @@ describe('ProtoBuffer', () => {
 
       buffer = new ProtoBuffer(bytes, 0, 1);
       expect(() => buffer.readVarint()).toThrow('Buffer underflow');
+    });
+
+    it('length, zigzag', () => {
+      expect(ProtoBuffer.zigzagLength(0n)).toBe(1);
+      expect(ProtoBuffer.zigzagLength(1n)).toBe(1);
+      expect(ProtoBuffer.zigzagLength(2n)).toBe(1);
+      expect(ProtoBuffer.zigzagLength(127n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(128n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(255n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(256n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(65535n)).toBe(3);
+
+      expect(ProtoBuffer.zigzagLength(-1n)).toBe(1);
+      expect(ProtoBuffer.zigzagLength(-2n)).toBe(1);
+      expect(ProtoBuffer.zigzagLength(-127n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(-128n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(-255n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(-256n)).toBe(2);
+      expect(ProtoBuffer.zigzagLength(-65535n)).toBe(3);
+    });
+
+    it('length, no zigzag', () => {
+      expect(ProtoBuffer.varintLength(0n)).toBe(1);
+      expect(ProtoBuffer.varintLength(1n)).toBe(1);
+      expect(ProtoBuffer.varintLength(2n)).toBe(1);
+      expect(ProtoBuffer.varintLength(127n)).toBe(1);
+      expect(ProtoBuffer.varintLength(128n)).toBe(2);
+      expect(ProtoBuffer.varintLength(255n)).toBe(2);
+      expect(ProtoBuffer.varintLength(256n)).toBe(2);
+      expect(ProtoBuffer.varintLength(65535n)).toBe(3);
+
+      expect(ProtoBuffer.varintLength(-1n)).toBe(10);
+      expect(ProtoBuffer.varintLength(-2n)).toBe(10);
+      expect(ProtoBuffer.varintLength(-127n)).toBe(10);
+      expect(ProtoBuffer.varintLength(-128n)).toBe(10);
+      expect(ProtoBuffer.varintLength(-255n)).toBe(10);
+      expect(ProtoBuffer.varintLength(-256n)).toBe(10);
+      expect(ProtoBuffer.varintLength(-65535n)).toBe(10);
     });
   });
 
