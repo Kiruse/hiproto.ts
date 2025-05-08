@@ -44,7 +44,7 @@ Following wire format features have been implemented, or will be implemented in 
 - [x] Varint
 - [x] Scalars
 - [ ] Submessages
-- [ ] Bytes & Strings
+- [x] Bytes & Strings
 - [x] Open enums
 - [ ] Full enums
 - [ ] `repeated`, packed
