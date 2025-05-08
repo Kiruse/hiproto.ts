@@ -173,9 +173,9 @@ describe('ProtoBuffer', () => {
       }
     });
 
-    it('throw on buffer too small', () => {
+    it('throw on buffer overflow', () => {
       const buffer = new ProtoBuffer(new Uint8Array(1));
-      expect(() => buffer.writeVarint(255)).toThrow('Buffer too small');
+      expect(() => buffer.writeVarint(255)).toThrow('Buffer overflow');
     });
 
     it('throw on underflow', () => {

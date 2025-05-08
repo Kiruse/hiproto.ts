@@ -205,7 +205,7 @@ export class ProtoBuffer {
 
   #assertSize(size: number) {
     if (this.#view.byteLength - this.#offset < size) {
-      throw new Error('Buffer too small');
+      throw new Error('Buffer overflow');
     }
   }
 
