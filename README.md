@@ -53,6 +53,7 @@ Following wire format features have been implemented, or will be implemented in 
 - [ ] *Last one wins*
 - [ ] Maps
 - [ ] Groups
+- [x] `hpb.infer`
 
 **Note** that *Groups* are deprecated, and thus do not enjoy high priority in this project.
 

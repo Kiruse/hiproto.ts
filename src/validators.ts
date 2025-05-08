@@ -25,24 +25,25 @@ type ValCtor<Args extends any[], T, S extends string> = new (...args: Args) => F
 type ValFactory<Args extends any[], T, S extends string> = (...args: Args) => FieldValidator<T, S>;
 
 // TODO: T needs to be further constrained before we can actually write this class
-export class MessageValidator<T> implements Validator<T, 'message'> {
-  readonly [InferType]: T = undefined as any;
+export class MessageValidator<T extends Record<string, Validator>> implements Validator<v.infer<T>, 'message'> {
+  readonly [InferType]: v.infer<T> = undefined as any;
   readonly type = 'message';
-  readonly fields: Readonly<Record<string, Validator>>;
 
-  constructor(fields: Record<string, Validator>) {
-    this.fields = fields;
-  }
+  constructor(public readonly fields: Readonly<T>) {}
 
-  encode(value: T, buffer: ProtoBuffer) {
+  encode(value: v.infer<T>, buffer: ProtoBuffer) {
     throw new Error('Not yet implemented');
   }
-  decode(buffer: ProtoBuffer): T {
+  decode(buffer: ProtoBuffer): v.infer<T> {
     throw new Error('Not yet implemented');
   }
 
-  length(value: T): number {
-    throw new Error('Not yet implemented');
+  length(value: v.infer<T>): number {
+    let length = 0;
+    for (const [key, validator] of Object.entries(this.fields) as [keyof T, Validator<any, string>][] ) {
+      length += validator.length(value[key as keyof v.infer<T>]);
+    }
+    return length;
   }
 }
 
@@ -123,7 +124,7 @@ export class Int32Validator extends FieldValidatorBase<number, 'int32'> {
     const { index, wiretype } = buffer.readFieldHeader();
     if (index !== this.index || wiretype !== WireType.Varint)
       throw new DecodeError(`Invalid field header: expected index ${this.index} & wiretype ${WireType.Varint}, got index ${index} & wiretype ${wiretype}`);
-    return Number(buffer.readVarint());
+    return Number(BigInt.asIntN(32, buffer.readVarint()));
   }
   length(value: number) {
     return 1 + ProtoBuffer.varintLength(value);
@@ -159,7 +160,7 @@ export class Uint32Validator extends FieldValidatorBase<number, 'uint32'> {
     const { index, wiretype } = buffer.readFieldHeader();
     if (index !== this.index || wiretype !== WireType.Varint)
       throw new DecodeError(`Invalid field header: expected index ${this.index} & wiretype ${WireType.Varint}, got index ${index} & wiretype ${wiretype}`);
-    return Number(buffer.readVarint());
+    return Number(BigInt.asUintN(32, buffer.readUvarint()));
   }
   length(value: number) {
     return 1 + ProtoBuffer.varintLength(value);
@@ -177,7 +178,7 @@ export class Uint64Validator extends FieldValidatorBase<bigint, 'uint64'> {
     const { index, wiretype } = buffer.readFieldHeader();
     if (index !== this.index || wiretype !== WireType.Varint)
       throw new DecodeError(`Invalid field header: expected index ${this.index} & wiretype ${WireType.Varint}, got index ${index} & wiretype ${wiretype}`);
-    return buffer.readVarint();
+    return buffer.readUvarint();
   }
   length(value: bigint) {
     return 1 + ProtoBuffer.varintLength(value);
@@ -348,30 +349,30 @@ export class BytesValidator extends FieldValidatorBase<Uint8Array, 'bytes'> {
   }
 }
 
-export class SubmessageValidator<T> extends FieldValidatorBase<T, 'message'> implements MessageValidator<T> {
-  readonly type = 'message';
+export class SubmessageValidator<T extends Record<string, Validator>> extends FieldValidatorBase<v.infer<T>, 'submessage'> implements Omit<MessageValidator<T>, 'type'> {
+  readonly type = 'submessage';
 
   constructor(
     index: number,
-    public readonly fields: Record<string, FieldValidator<any, string>>,
+    public readonly fields: Readonly<T>,
   ) {
     super(index);
   }
 
-  encode(value: T, buffer: ProtoBuffer) {
+  encode(value: v.infer<T>, buffer: ProtoBuffer) {
     buffer.writeFieldHeader(this.index, WireType.Len);
     buffer.writeVarint(MessageValidator.prototype.length.call(this, value));
     MessageValidator.prototype.encode.call(this, value, buffer);
   }
-  decode(buffer: ProtoBuffer): T {
+  decode(buffer: ProtoBuffer): v.infer<T> {
     const { index, wiretype } = buffer.readFieldHeader();
     if (index !== this.index || wiretype !== WireType.Len)
       throw new DecodeError(`Invalid field header: expected index ${this.index} & wiretype ${WireType.Len}, got index ${index} & wiretype ${wiretype}`);
     const length = Number(buffer.readVarint());
-    return MessageValidator.prototype.decode.call(this, buffer.slice(length));
+    return MessageValidator.prototype.decode.call(this, buffer.slice(length)) as any;
   }
 
-  length(value: T): number {
+  length(value: v.infer<T>): number {
     const length = MessageValidator.prototype.length.call(this, value);
     return length + 1 + ProtoBuffer.varintLength(length);
   }
@@ -465,7 +466,7 @@ export type RepeatedExpandedValidators = {
 };
 
 export const v = {
-  message: <T>(fields: Record<string, Validator>) => new MessageValidator<T>(fields),
+  message: <T extends Record<string, Validator>>(fields: T) => new MessageValidator<T>(fields),
   ...fieldValidators,
   repeated: {
     // NOTE: it's easiest to just ignore the TypeScript bits and pretend everything is correct
@@ -486,9 +487,18 @@ export const v = {
   },
 };
 
+// `infer` helper for type inference
 export namespace v {
-  // TODO: special treatment for repeated, submessage & map fields
-  export type infer<T> = T extends Validator<infer U, any> ? U : never;
+  export type infer<T> = Infer<T>;
+
+  type Infer<T> =
+    T extends MessageValidator<infer U> | SubmessageValidator<infer U>
+    ? { [K in keyof U]: Infer<U[K]> }
+    : T extends PackedRepeatedValidator<infer U> | ExpandedRepeatedValidator<infer U>
+    ? U[]
+    : T extends FieldValidator<infer U, any>
+    ? U
+    : never;
 }
 
 export class EncodeError extends Error {
