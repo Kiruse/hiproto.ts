@@ -42,12 +42,33 @@ const instance: MyType = myTypeSchema.parse(bytes);
 Following wire format features have been implemented, or will be implemented in the future:
 
 - [x] Varint
-- [ ] Scalars
+- [x] Scalars
 - [ ] Submessages
 - [ ] Bytes & Strings
-- [ ] `optional`
+- [x] Open enums
+- [ ] Full enums
 - [ ] `repeated`, packed
 - [ ] `repeated`, extended
 - [ ] *One of*'s
 - [ ] *Last one wins*
 - [ ] Maps
+- [ ] Groups
+
+**Note** that *Groups* are deprecated, and thus do not enjoy high priority in this project.
+
+## Enums
+Enums are subject to some special requirements in protobuf:
+
+- Although TypeScript supports string-based enums, protobuf enums are always numeric.
+- Enums should always have a 0 value, and it should mean something like "unknown." This is because
+  **all fields are optional by default** in protobuf, and all scalars have the default value of 0.
+
+Note that enums are currently not fully [standard-compliant](https://protobuf.dev/programming-guides/enum/).
+This is actually true for many implementations across various languages. *protobuf* distinguishes
+between *open* and *closed* enums, with *closed* enums allowing only the specified values of an enum.
+
+**This library currently only supports *open* enums.**
+
+Since the behavior of enums changes depending on how it's been imported and where -with respect to
+the *proto2* or *proto3* syntaxes- this technically requires the capacity to strictly define how our
+enum shall be de/encoded. This feature will be added in a future release.

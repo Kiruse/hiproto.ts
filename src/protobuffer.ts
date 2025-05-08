@@ -1,3 +1,12 @@
+export enum WireType {
+  Varint = 0,
+  I64 = 1,
+  Len = 2,
+  SGroup = 3,
+  EGroup = 4,
+  I32 = 5,
+}
+
 /** Custom buffer class optimized for reading & writing protobuf wire format. */
 export class ProtoBuffer {
   #buffer: Uint8Array;
@@ -10,6 +19,15 @@ export class ProtoBuffer {
     this.#view = new DataView(buffer.buffer, offset, length);
   }
 
+  /** Write a field header to the buffer. */
+  writeFieldHeader(index: number, ty: WireType) {
+    if (index >> 5) throw new RangeError('Field index too large');
+    this.#assertSize(1);
+    this.#buffer[this.#offset++] = (index << 3) | ty;
+    this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
+    return this;
+  }
+
   writeFloat(value: number) {
     this.#assertSize(4);
     this.#view.setFloat32(this.#offset, value, true);
@@ -20,7 +38,15 @@ export class ProtoBuffer {
 
   writeFixed32(value: number | bigint) {
     this.#assertSize(4);
-    this.#view.setInt32(this.#offset, Number(value), true);
+    this.#view.setUint32(this.#offset, Number(value), true);
+    this.#offset += 4;
+    this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
+    return this;
+  }
+
+  writeSfixed32(value: number) {
+    this.#assertSize(4);
+    this.#view.setInt32(this.#offset, value, true);
     this.#offset += 4;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
     return this;
@@ -37,6 +63,14 @@ export class ProtoBuffer {
   writeFixed64(value: number | bigint) {
     this.#assertSize(8);
     this.#view.setBigUint64(this.#offset, BigInt(value), true);
+    this.#offset += 8;
+    this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
+    return this;
+  }
+
+  writeSfixed64(value: number | bigint) {
+    this.#assertSize(8);
+    this.#view.setBigInt64(this.#offset, BigInt(value), true);
     this.#offset += 8;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
     return this;
@@ -76,16 +110,26 @@ export class ProtoBuffer {
     return this.writeVarint(Number(value), true);
   }
 
+  writeBytes(value: Uint8Array) {
+    this.#assertSize(value.length);
+    this.#buffer.set(value, this.#view.byteOffset + this.#offset);
+    this.#offset += value.length;
+    this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
+    return this;
+  }
+
+  /** Read a field header from the buffer. */
+  readFieldHeader() {
+    this.#assertSize(1);
+    const header = this.#buffer[this.#offset++]!;
+    const index = header >> 3;
+    const wiretype = (header & 0x7) as WireType;
+    return { index, wiretype };
+  }
+
   readFloat(): number {
     this.#assertSize(4);
     const result = this.#view.getFloat32(this.#offset, true);
-    this.#offset += 4;
-    return result;
-  }
-
-  readFixed32(): number {
-    this.#assertSize(4);
-    const result = this.#view.getInt32(this.#offset, true);
     this.#offset += 4;
     return result;
   }
@@ -97,9 +141,30 @@ export class ProtoBuffer {
     return result;
   }
 
+  readFixed32(): number {
+    this.#assertSize(4);
+    const result = this.#view.getUint32(this.#offset, true);
+    this.#offset += 4;
+    return result;
+  }
+
+  readSfixed32(): number {
+    this.#assertSize(4);
+    const result = this.#view.getInt32(this.#offset, true);
+    this.#offset += 4;
+    return result;
+  }
+
   readFixed64(): bigint {
     this.#assertSize(8);
     const result = this.#view.getBigUint64(this.#offset, true);
+    this.#offset += 8;
+    return result;
+  }
+
+  readSfixed64(): bigint {
+    this.#assertSize(8);
+    const result = this.#view.getBigInt64(this.#offset, true);
     this.#offset += 8;
     return result;
   }
@@ -131,6 +196,17 @@ export class ProtoBuffer {
     return (result >> 1n) ^ -(result & 1n);
   }
 
+  readBytes(length: number): Uint8Array {
+    this.#assertSize(length);
+    const result = this.#buffer.slice(this.#view.byteOffset + this.#offset, this.#view.byteOffset + this.#offset + length);
+    this.#offset += length;
+    return result;
+  }
+
+  slice(length: number): ProtoBuffer {
+    return new ProtoBuffer(this.#buffer, this.#view.byteOffset + this.#offset, length);
+  }
+
   #assertSize(size: number) {
     if (this.#view.byteLength - this.#offset < size) {
       throw new Error('Buffer too small');
@@ -149,9 +225,25 @@ export class ProtoBuffer {
     return this.#buffer.slice(this.#view.byteOffset, this.#view.byteOffset + this.#writtenLength);
   }
 
+  /** Seek to a specific offset in the buffer. */
   seek(offset: number) {
     this.#offset = offset;
     return this;
+  }
+
+  /** Returns the current offset in the buffer. */
+  tell() {
+    return this.#offset;
+  }
+
+  /** Computes the length of a signed and unsigned varint. */
+  static varintLength(value: number | bigint): number {
+    throw new Error('Not yet implemented');
+  }
+
+  /** Computes the length of a signed, zigzag encoded varint. */
+  static zigzagLength(value: number | bigint): number {
+    throw new Error('Not yet implemented');
   }
 
   get offset() {
