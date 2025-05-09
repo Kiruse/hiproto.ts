@@ -114,13 +114,37 @@ export class ProtoBuffer {
     return this;
   }
 
-  /** Read a field header from the buffer. */
-  readFieldHeader() {
+  peekFieldHeader() {
     this.#assertSize(1);
-    const header = this.#buffer[this.#offset++]!;
+    const header = this.#buffer[this.#offset]!;
     const index = header >> 3;
     const wiretype = (header & 0x7) as WireType;
     return { index, wiretype };
+  }
+
+  /** Read a field header from the buffer. */
+  readFieldHeader() {
+    const result = this.peekFieldHeader();
+    this.#offset++;
+    return result;
+  }
+
+  readWireType(wiretype: WireType) {
+    switch (wiretype) {
+      case WireType.Varint:
+        return this.readVarint();
+      case WireType.I32:
+        return this.readFixed32();
+      case WireType.I64:
+        return this.readFixed64();
+      case WireType.Len: {
+        const length = Number(this.readVarint());
+        return this.readBytes(length);
+      }
+      case WireType.SGroup:
+      case WireType.EGroup:
+        throw new Error('Group types are not supported');
+    }
   }
 
   readFloat(): number {
@@ -199,8 +223,17 @@ export class ProtoBuffer {
     return result;
   }
 
+  /** Returns a new sub-`ProtoBuffer` that points to the current buffer at the current offset with
+   * reduced length.
+   *
+   * Unlike it's distant kin `Array.prototype.slice`, this method moves the internal offset forward
+   * by the requested length. This follows the idea that the slice will be processed by the respective
+   * sub-`ProtoBuffer` and the data will no longer be relevant to this `ProtoBuffer`.
+   */
   slice(length: number): ProtoBuffer {
-    return new ProtoBuffer(this.#buffer, this.#view.byteOffset + this.#offset, length);
+    const result = new ProtoBuffer(this.#buffer, this.#view.byteOffset + this.#offset, length);
+    this.#offset += length;
+    return result;
   }
 
   #assertSize(size: number) {
@@ -264,6 +297,10 @@ export class ProtoBuffer {
 
   get writtenLength() {
     return this.#writtenLength;
+  }
+
+  get remainingLength() {
+    return this.#view.byteLength - this.#offset;
   }
 }
 
