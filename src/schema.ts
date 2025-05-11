@@ -1,4 +1,4 @@
-import { ProtoBuffer, WireType } from './protobuffer';
+import { Bytes, ProtoBuffer, WireType } from './protobuffer';
 
 export const InferType = Symbol('InferType');
 export const UnknownFields = Symbol('UnknownFields');
@@ -68,7 +68,7 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
     }
   }
 
-  encode(value: v.infer<T>, buffer: ProtoBuffer) {
+  encode(value: v.infer<T>, buffer = new ProtoBuffer()) {
     const val: any = value;
     for (const field in this.fields) {
       const schema = this.fields[field];
@@ -167,13 +167,13 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
 }
 
 /** Algorithm for encoding & decoding of individual values. */
-export interface Codec<T> {
+export interface Codec<In> {
   get wiretype(): WireType;
-  get default(): T;
-  encode(value: T, buffer: ProtoBuffer): void;
-  decode(buffer: ProtoBuffer): T;
-  length(value: T): number;
-  isDefault(value: T): boolean;
+  get default(): In;
+  encode(value: In, buffer: ProtoBuffer): void;
+  decode(buffer: ProtoBuffer): In;
+  length(value: In): number;
+  isDefault(value: In): boolean;
 }
 
 export const codec = {
@@ -426,7 +426,7 @@ export const codec = {
 
     decode(buffer: ProtoBuffer) {
       const bytes = codec.bytes.decode(buffer);
-      return new TextDecoder().decode(bytes);
+      return new TextDecoder().decode(Bytes.getUint8Array(bytes));
     },
 
     length(value: string) {
@@ -453,7 +453,7 @@ export const codec = {
     length(value: Uint8Array) {
       return ProtoBuffer.varintLength(value.length) + value.length;
     }
-  } as Codec<Uint8Array>,
+  } as Codec<Uint8Array | Bytes>,
 
   submessage: <T extends MessageFields>(fields: T): Codec<v.infer<T>> => {
     const msg = new MessageValidator(fields);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ProtoBuffer } from './protobuffer';
+import { Bytes, ProtoBuffer } from './protobuffer';
 import { v } from './schema';
 
 describe('schemas', () => {
@@ -228,7 +228,7 @@ describe('schemas', () => {
     buffer.seek(0);
 
     expect(buffer.writtenLength).toBe(6);
-    expect(val.codec.decode(buffer)).toEqual(data);
+    expect(Bytes.getUint8Array(val.codec.decode(buffer))).toEqual(data);
   });
 
   describe('messages', () => {
@@ -330,14 +330,16 @@ describe('schemas', () => {
 
       buffer = buffer.toShrunk();
 
+      let decoded = schema.decode(buffer);
+
       expect(buffer.writtenLength).toBe(17);
-      expect(schema.decode(buffer)).toMatchObject({
+      expect(decoded).toMatchObject({
         name: 'hello',
         type: MessageType.Unknown,
-        payload: new Uint8Array([1, 2, 3]),
         memo: '',
         flags: [true, false, true],
       });
+      expect(Bytes.getUint8Array(decoded.payload!)).toEqual(new Uint8Array([1, 2, 3]));
     });
 
     test('submessage', () => {
@@ -365,7 +367,6 @@ describe('schemas', () => {
 
       buffer = buffer.toShrunk(); // TODO: it's correctly encoding, but decoding runs into a buffer underflow
 
-      debugger;
       expect(buffer.writtenLength).toBe(15);
       expect(schema.decode(buffer)).toMatchObject({
         name: 'hello',
