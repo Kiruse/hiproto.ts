@@ -343,16 +343,22 @@ describe('schemas', () => {
     test('submessage', () => {
       const schema = v.message({
         name: v.string(1),
-        payload: v.submessage(2, {
+        sub1: v.submessage(2, {
           value: v.int32(1),
+        }),
+        sub2: v.submessage(3, {
+          value: v.int32(2),
         }),
       });
 
       let buffer = new ProtoBuffer(new Uint8Array(100));
       schema.encode({
         name: 'hello', // 7 bytes (header + len + 5 bytes)
-        payload: { // 4 bytes (header + len + content)
+        sub1: { // 4 bytes (header + len + content)
           value: 42, // 2 bytes (header + value)
+        },
+        sub2: { // 4 bytes, same as above
+          value: 43,
         },
       }, buffer);
       buffer.seek(0);
@@ -360,11 +366,14 @@ describe('schemas', () => {
       buffer = buffer.toShrunk(); // TODO: it's correctly encoding, but decoding runs into a buffer underflow
 
       debugger;
-      expect(buffer.writtenLength).toBe(11);
+      expect(buffer.writtenLength).toBe(15);
       expect(schema.decode(buffer)).toMatchObject({
         name: 'hello',
-        payload: {
+        sub1: {
           value: 42,
+        },
+        sub2: {
+          value: 43,
         },
       });
     });
