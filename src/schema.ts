@@ -159,7 +159,8 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
   length(value: v.infer<T>): number {
     let length = 0;
     for (const [key, schema] of Object.entries(this.fields) as [keyof T, FieldSchema<any, string>][] ) {
-      length += schema.length(value[key as keyof v.infer<T>]);
+      // extra 1 byte for the field header
+      length += 1 + schema.length(value[key as keyof v.infer<T>]);
     }
     return length;
   }

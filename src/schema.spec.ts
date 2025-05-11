@@ -359,6 +359,7 @@ describe('schemas', () => {
 
       buffer = buffer.toShrunk(); // TODO: it's correctly encoding, but decoding runs into a buffer underflow
 
+      debugger;
       expect(buffer.writtenLength).toBe(11);
       expect(schema.decode(buffer)).toMatchObject({
         name: 'hello',
