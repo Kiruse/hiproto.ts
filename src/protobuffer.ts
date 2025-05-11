@@ -22,14 +22,14 @@ export class ProtoBuffer {
   /** Write a field header to the buffer. */
   writeFieldHeader(index: number, ty: WireType) {
     if (index >> 5) throw new RangeError('Field index too large');
-    this.#assertSize(1);
-    this.#buffer[this.#offset++] = (index << 3) | ty;
+    this.assertCapacity(1);
+    this.#buffer[this.#view.byteOffset + this.#offset++] = (index << 3) | ty;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
     return this;
   }
 
   writeFloat(value: number) {
-    this.#assertSize(4);
+    this.assertCapacity(4);
     this.#view.setFloat32(this.#offset, value, true);
     this.#offset += 4;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -37,7 +37,7 @@ export class ProtoBuffer {
   }
 
   writeFixed32(value: number | bigint) {
-    this.#assertSize(4);
+    this.assertCapacity(4);
     this.#view.setUint32(this.#offset, Number(value), true);
     this.#offset += 4;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -45,7 +45,7 @@ export class ProtoBuffer {
   }
 
   writeSfixed32(value: number) {
-    this.#assertSize(4);
+    this.assertCapacity(4);
     this.#view.setInt32(this.#offset, value, true);
     this.#offset += 4;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -53,7 +53,7 @@ export class ProtoBuffer {
   }
 
   writeDouble(value: number) {
-    this.#assertSize(8);
+    this.assertCapacity(8);
     this.#view.setFloat64(this.#offset, value, true);
     this.#offset += 8;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -61,7 +61,7 @@ export class ProtoBuffer {
   }
 
   writeFixed64(value: number | bigint) {
-    this.#assertSize(8);
+    this.assertCapacity(8);
     this.#view.setBigUint64(this.#offset, BigInt(value), true);
     this.#offset += 8;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -69,7 +69,7 @@ export class ProtoBuffer {
   }
 
   writeSfixed64(value: number | bigint) {
-    this.#assertSize(8);
+    this.assertCapacity(8);
     this.#view.setBigInt64(this.#offset, BigInt(value), true);
     this.#offset += 8;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -79,8 +79,8 @@ export class ProtoBuffer {
   writeVarint(value: number | bigint) {
     value = BigInt(value);
     if (value === 0n) {
-      this.#assertSize(1);
-      this.#buffer[this.#offset++] = 0;
+      this.assertCapacity(1);
+      this.#buffer[this.#view.byteOffset + this.#offset++] = 0;
       this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
       return this;
     }
@@ -95,8 +95,8 @@ export class ProtoBuffer {
       if (value > 0n) {
         byte |= 0x80;
       }
-      this.#assertSize(1);
-      this.#buffer[this.#offset++] = byte;
+      this.assertCapacity(1);
+      this.#buffer[this.#view.byteOffset + this.#offset++] = byte;
     }
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
     return this;
@@ -107,7 +107,7 @@ export class ProtoBuffer {
   }
 
   writeBytes(value: Uint8Array) {
-    this.#assertSize(value.length);
+    this.assertCapacity(value.length);
     this.#buffer.set(value, this.#view.byteOffset + this.#offset);
     this.#offset += value.length;
     this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
@@ -115,8 +115,8 @@ export class ProtoBuffer {
   }
 
   peekFieldHeader() {
-    this.#assertSize(1);
-    const header = this.#buffer[this.#offset]!;
+    this.assertCapacity(1);
+    const header = this.#buffer[this.#view.byteOffset + this.#offset]!;
     const index = header >> 3;
     const wiretype = (header & 0x7) as WireType;
     return { index, wiretype };
@@ -148,42 +148,42 @@ export class ProtoBuffer {
   }
 
   readFloat(): number {
-    this.#assertSize(4);
+    this.assertCapacity(4);
     const result = this.#view.getFloat32(this.#offset, true);
     this.#offset += 4;
     return result;
   }
 
   readDouble(): number {
-    this.#assertSize(8);
+    this.assertCapacity(8);
     const result = this.#view.getFloat64(this.#offset, true);
     this.#offset += 8;
     return result;
   }
 
   readFixed32(): number {
-    this.#assertSize(4);
+    this.assertCapacity(4);
     const result = this.#view.getUint32(this.#offset, true);
     this.#offset += 4;
     return result;
   }
 
   readSfixed32(): number {
-    this.#assertSize(4);
+    this.assertCapacity(4);
     const result = this.#view.getInt32(this.#offset, true);
     this.#offset += 4;
     return result;
   }
 
   readFixed64(): bigint {
-    this.#assertSize(8);
+    this.assertCapacity(8);
     const result = this.#view.getBigUint64(this.#offset, true);
     this.#offset += 8;
     return result;
   }
 
   readSfixed64(): bigint {
-    this.#assertSize(8);
+    this.assertCapacity(8);
     const result = this.#view.getBigInt64(this.#offset, true);
     this.#offset += 8;
     return result;
@@ -197,7 +197,7 @@ export class ProtoBuffer {
     do {
       if (this.#offset >= this.#view.byteLength)
         throw new Error('Buffer underflow');
-      byte = this.#buffer[this.#offset]!;
+      byte = this.#buffer[this.#view.byteOffset + this.#offset]!;
       this.#offset++;
       result |= BigInt(byte & 0x7f) << shift;
       shift += 7n;
@@ -217,7 +217,7 @@ export class ProtoBuffer {
   }
 
   readBytes(length: number): Uint8Array {
-    this.#assertSize(length);
+    this.assertCapacity(length);
     const result = this.#buffer.slice(this.#view.byteOffset + this.#offset, this.#view.byteOffset + this.#offset + length);
     this.#offset += length;
     return result;
@@ -233,10 +233,11 @@ export class ProtoBuffer {
   slice(length: number): ProtoBuffer {
     const result = new ProtoBuffer(this.#buffer, this.#view.byteOffset + this.#offset, length);
     this.#offset += length;
+    this.#writtenLength = Math.max(this.#writtenLength, this.#offset);
     return result;
   }
 
-  #assertSize(size: number) {
+  assertCapacity(size: number) {
     if (this.#view.byteLength - this.#offset < size) {
       throw new Error('Buffer overflow');
     }
@@ -263,6 +264,32 @@ export class ProtoBuffer {
   /** Returns the current offset in the buffer. */
   tell() {
     return this.#offset;
+  }
+
+  /** Get a shrunk buffer that only contains the bytes that were written to the buffer.
+   *
+   * **Caveat:** Written length is quirky, and may not actually represent the number of actually
+   * relevant bytes. Calling this method only makes sense at the end of a serialization process.
+   */
+  toShrunk() {
+    const result = new ProtoBuffer(this.#buffer, this.#view.byteOffset, this.#writtenLength);
+    result.#offset = this.#offset;
+    result.#writtenLength = this.#writtenLength;
+    return result;
+  }
+
+  toHex() {
+    const bytes = this.#buffer.slice(this.#view.byteOffset, this.#view.byteOffset + this.#view.byteLength);
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  static fromHex(hex: string) {
+    if (hex.length % 2 !== 0) throw new Error('Hex string must be even length');
+    const buffer = new Uint8Array(hex.length >> 1);
+    for (let i = 0; i < hex.length; i += 2) {
+      buffer[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+    }
+    return new ProtoBuffer(buffer);
   }
 
   /** Computes the length of a signed and unsigned varint. */

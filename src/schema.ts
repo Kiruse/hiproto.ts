@@ -17,6 +17,7 @@ export interface Validator<T = unknown, S extends string = string> {
 
 export interface FieldSchema<T, S extends string> extends Validator<T, S> {
   index: number;
+  wiretype: WireType;
   repeated: Repeatedness;
   codec: Codec<T>;
 }
@@ -46,6 +47,12 @@ export enum Repeatedness {
   Expanded,
 }
 
+enum EncodeMode {
+  Single,
+  Packed,
+  Expanded,
+}
+
 export class MessageValidator<T extends MessageFields> implements Validator<v.infer<T>, 'message'> {
   readonly [InferType]: v.infer<T> = undefined as any;
   readonly type = 'message';
@@ -62,10 +69,38 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
   }
 
   encode(value: v.infer<T>, buffer: ProtoBuffer) {
+    const val: any = value;
     for (const field in this.fields) {
       const schema = this.fields[field];
-      // TODO: implement
-      throw new Error('Not yet implemented');
+      const encodeMode = getEncodeMode(schema);
+
+      if (!val[field] || schema.codec.isDefault(val[field])) continue;
+
+      switch (encodeMode) {
+        case EncodeMode.Single: {
+          buffer.writeFieldHeader(schema.index, schema.wiretype);
+          schema.codec.encode(val[field], buffer);
+          break;
+        }
+        case EncodeMode.Packed: {
+          const byteLength = val[field].reduce((acc: number, item: any) => acc + schema.codec.length(item), 0);
+          buffer.writeFieldHeader(schema.index, WireType.Len);
+          buffer.writeVarint(byteLength);
+          buffer.assertCapacity(byteLength);
+          for (const item of val[field] as any[]) {
+            schema.codec.encode(item, buffer);
+          }
+          break;
+        }
+        case EncodeMode.Expanded: {
+          buffer.writeFieldHeader(schema.index, schema.wiretype);
+          for (const item of val[field] as any[]) {
+            buffer.writeVarint(schema.codec.length(item));
+            schema.codec.encode(item, buffer);
+          }
+          break;
+        }
+      }
     }
   }
 
@@ -83,10 +118,14 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
       }
 
       const schema = this.fields[fieldName]!;
-      if (wiretype === WireType.Len && !schema.codec.isLengthDelimited) {
+      // packed fields
+      if (wiretype === WireType.Len && schema.codec.wiretype !== WireType.Len) {
         const length = Number(buffer.readVarint());
         const subbuffer = buffer.slice(length);
-        pushValue(payload, fieldName, schema.codec.decode(subbuffer));
+        while (subbuffer.remainingLength > 0) {
+          const item = schema.codec.decode(subbuffer);
+          pushValue(payload, fieldName, item);
+        }
       } else {
         pushValue(payload, fieldName, schema.codec.decode(buffer));
       }
@@ -95,6 +134,16 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
     // step 2: post-process & validate payload
     for (const field in this.fields) {
       const schema = this.fields[field]!;
+
+      if (!payload[field]) {
+        if (schema.repeated === Repeatedness.None) {
+          payload[field] = schema.codec.default;
+        } else {
+          payload[field] = [];
+        }
+        continue;
+      }
+
       if (schema.repeated === Repeatedness.None) {
         if (Array.isArray(payload[field]))
           throw new DecodeError(`Field ${field} is repeated, but schema expects a single value`);
@@ -118,15 +167,19 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
 
 /** Algorithm for encoding & decoding of individual values. */
 export interface Codec<T> {
-  isLengthDelimited: boolean;
+  get wiretype(): WireType;
+  get default(): T;
   encode(value: T, buffer: ProtoBuffer): void;
   decode(buffer: ProtoBuffer): T;
   length(value: T): number;
+  isDefault(value: T): boolean;
 }
 
 export const codec = {
   bool: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return false; },
+    isDefault(value: boolean) { return value === false; },
     encode(value: boolean, buffer: ProtoBuffer) {
       buffer.writeVarint(value ? 1 : 0);
     },
@@ -141,7 +194,9 @@ export const codec = {
   } as Codec<boolean>,
 
   float: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.I32; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeFloat(value);
     },
@@ -156,7 +211,9 @@ export const codec = {
   } as Codec<number>,
 
   double: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.I64; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeDouble(value);
     },
@@ -171,7 +228,9 @@ export const codec = {
   } as Codec<number>,
 
   int32: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeVarint(value);
     },
@@ -186,7 +245,9 @@ export const codec = {
   } as Codec<number>,
 
   int64: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0n; },
+    isDefault(value: bigint) { return value === 0n; },
     encode(value: bigint, buffer: ProtoBuffer) {
       buffer.writeVarint(value);
     },
@@ -201,7 +262,9 @@ export const codec = {
   } as Codec<bigint>,
 
   uint32: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeVarint(value);
     },
@@ -216,7 +279,9 @@ export const codec = {
   } as Codec<number>,
 
   uint64: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0n; },
+    isDefault(value: bigint) { return value === 0n; },
     encode(value: bigint, buffer: ProtoBuffer) {
       buffer.writeVarint(value);
     },
@@ -231,7 +296,9 @@ export const codec = {
   } as Codec<bigint>,
 
   sint32: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeZigzag(value);
     },
@@ -246,7 +313,9 @@ export const codec = {
   } as Codec<number>,
 
   sint64: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0n; },
+    isDefault(value: bigint) { return value === 0n; },
     encode(value: bigint, buffer: ProtoBuffer) {
       buffer.writeZigzag(value);
     },
@@ -261,7 +330,9 @@ export const codec = {
   } as Codec<bigint>,
 
   fixed32: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.I32; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeFixed32(value);
     },
@@ -276,7 +347,9 @@ export const codec = {
   } as Codec<number>,
 
   fixed64: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.I64; },
+    get default() { return 0n; },
+    isDefault(value: bigint) { return value === 0n; },
     encode(value: bigint, buffer: ProtoBuffer) {
       buffer.writeFixed64(value);
     },
@@ -291,7 +364,9 @@ export const codec = {
   } as Codec<bigint>,
 
   sfixed32: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.I32; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeSfixed32(value);
     },
@@ -306,7 +381,9 @@ export const codec = {
   } as Codec<number>,
 
   sfixed64: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.I64; },
+    get default() { return 0n; },
+    isDefault(value: bigint) { return value === 0n; },
     encode(value: bigint, buffer: ProtoBuffer) {
       buffer.writeSfixed64(value);
     },
@@ -321,7 +398,9 @@ export const codec = {
   } as Codec<bigint>,
 
   enum: {
-    isLengthDelimited: false,
+    get wiretype() { return WireType.Varint; },
+    get default() { return 0; },
+    isDefault(value: number) { return value === 0; },
     encode(value: number, buffer: ProtoBuffer) {
       buffer.writeVarint(value);
     },
@@ -336,7 +415,9 @@ export const codec = {
   } as Codec<number>,
 
   string: {
-    isLengthDelimited: true,
+    get wiretype() { return WireType.Len; },
+    get default() { return ''; },
+    isDefault(value: string) { return value === ''; },
     encode(value: string, buffer: ProtoBuffer) {
       const bytes = new TextEncoder().encode(value);
       return codec.bytes.encode(bytes, buffer);
@@ -353,7 +434,9 @@ export const codec = {
   } as Codec<string>,
 
   bytes: {
-    isLengthDelimited: true,
+    get wiretype() { return WireType.Len; },
+    get default() { return new Uint8Array(0); },
+    isDefault(value: Uint8Array) { return value.length === 0; },
     encode(value: Uint8Array, buffer: ProtoBuffer) {
       if (value.length > 0xffffffff)
         throw new EncodeError(`Bytes are too long: ${value.length} bytes, max is ${0xffffffff} (32 bits)`);
@@ -373,8 +456,24 @@ export const codec = {
 
   submessage: <T extends MessageFields>(fields: T): Codec<v.infer<T>> => {
     const msg = new MessageValidator(fields);
+
     return {
-      isLengthDelimited: true,
+      get wiretype() { return WireType.Len; },
+      get default() {
+        const result: any = {};
+        for (const key in fields) {
+          result[key] = fields[key]!.codec.default;
+        }
+        return result;
+      },
+      isDefault(value: v.infer<T>) {
+        for (const key in fields) {
+          if (!fields[key]!.codec.isDefault(value[key])) {
+            return false;
+          }
+        }
+        return true;
+      },
       encode(value: v.infer<T>, buffer: ProtoBuffer) {
         const length = msg.length(value);
         buffer.writeVarint(length);
@@ -398,12 +497,24 @@ type CodecMap = typeof codec;
 
 export type Schemas =
   & {
-      [K in Exclude<keyof CodecMap, 'submessage'>]: CodecMap[K] extends Codec<infer T>
+      [K in Exclude<keyof CodecMap, 'submessage' | 'enum'>]: CodecMap[K] extends Codec<infer T>
         ? (index: number) => FieldSchema<T, K>
         : never;
     }
   & {
+      enum: <T extends number>(index: number) => FieldSchema<T, 'enum'>;
       submessage: <T extends MessageFields>(index: number, fields: T) => FieldSchema<v.infer<T>, 'submessage'>;
+    };
+
+export type RepeatedSchemas =
+  & {
+      [K in Exclude<keyof CodecMap, 'submessage' | 'enum'>]: CodecMap[K] extends Codec<infer T>
+        ? (index: number) => FieldSchema<T[], K>
+        : never;
+    }
+  & {
+      enum: <T extends number>(index: number) => FieldSchema<T[], 'enum'>;
+      submessage: <T extends MessageFields>(index: number, fields: T) => FieldSchema<v.infer<T>[], 'submessage'>;
     };
 
 const fieldSchemas = Object.fromEntries(Object.entries(codec).map(([key, codec_]) => [
@@ -415,6 +526,7 @@ const fieldSchemas = Object.fromEntries(Object.entries(codec).map(([key, codec_]
       index,
       repeated: Repeatedness.None,
       codec,
+      wiretype: codec.wiretype,
       length: (value) => codec.length(value),
     }
   }
@@ -430,13 +542,13 @@ export const v = {
         key,
         (index: number, ...args: any[]) => Object.assign((fn as any)(index, ...args) as any, { repeated: Repeatedness.Default }),
       ]),
-    ) as unknown as Schemas,
+    ) as unknown as RepeatedSchemas,
     expanded: Object.fromEntries(
       Object.entries(fieldSchemas).map(([key, fn]) => [
         key,
         (index: number, ...args: any[]) => Object.assign((fn as any)(index, ...args) as any, { repeated: Repeatedness.Expanded }),
       ]),
-    ) as unknown as Omit<Schemas, 'bytes' | 'string' | 'submessage'>,
+    ) as unknown as Omit<RepeatedSchemas, 'bytes' | 'string' | 'submessage'>,
   },
 };
 
@@ -448,7 +560,7 @@ export namespace v {
     T extends MessageValidator<infer U>
     ? { [K in keyof U]?: Infer<U[K]> }
     : T extends MessageFields
-    ? { [K in keyof T]: Infer<T[K]> }
+    ? { [K in keyof T]?: Infer<T[K]> }
     : T extends FieldSchema<infer U, any>
     ? U
     : never;
@@ -462,6 +574,17 @@ function pushValue(obj: any, key: PropertyKey, value: any) {
   }
   else
     obj[key] = value;
+}
+
+function getEncodeMode(schema: FieldSchema<any, any>) {
+  switch (schema.repeated) {
+    case Repeatedness.None:
+      return EncodeMode.Single;
+    case Repeatedness.Default:
+      return schema.codec.wiretype === WireType.Len ? EncodeMode.Expanded : EncodeMode.Packed;
+    case Repeatedness.Expanded:
+      return EncodeMode.Expanded;
+  }
 }
 
 export class EncodeError extends Error {
