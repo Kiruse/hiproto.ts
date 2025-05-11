@@ -134,6 +134,28 @@ export class ProtoBuffer {
     return this;
   }
 
+  writeField(index: number, wiretype: WireType, value: any) {
+    this.writeFieldHeader(index, wiretype);
+    switch (wiretype) {
+      case WireType.Varint:
+        this.writeVarint(value);
+        break;
+      case WireType.I32:
+        this.writeFixed32(value);
+        break;
+      case WireType.I64:
+        this.writeFixed64(value);
+        break;
+      case WireType.Len:
+        this.writeBytes(value);
+        break;
+      case WireType.SGroup:
+      case WireType.EGroup:
+        throw new Error('Group types are not supported');
+    }
+    return this;
+  }
+
   writeFloat(value: number) {
     this.ensureCapacity(4);
     this.#buffer.view.setFloat32(this.#offset, value, true);

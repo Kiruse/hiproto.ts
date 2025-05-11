@@ -3,6 +3,10 @@ import { Bytes, ProtoBuffer, WireType } from './protobuffer';
 export const InferType = Symbol('InferType');
 export const UnknownFields = Symbol('UnknownFields');
 
+export type UnknownFieldsProp = {
+  [UnknownFields]?: Record<number, { index: number, wiretype: WireType, value: any }>;
+}
+
 export interface Validator<T = unknown, S extends string = string> {
   [InferType]?: T;
   type: S;
@@ -70,6 +74,7 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
 
   encode(value: v.infer<T>, buffer = new ProtoBuffer()) {
     const val: any = value;
+
     for (const field in this.fields) {
       const schema = this.fields[field];
       const encodeMode = getEncodeMode(schema);
@@ -102,9 +107,17 @@ export class MessageValidator<T extends MessageFields> implements Validator<v.in
         }
       }
     }
+
+    if (val[UnknownFields]) {
+      for (const { index, wiretype, value } of Object.values((val as UnknownFieldsProp)[UnknownFields]!)) {
+        buffer.writeField(index, wiretype, value);
+      }
+    }
+
+    return buffer;
   }
 
-  decode(buffer: ProtoBuffer): v.infer<T> {
+  decode(buffer: ProtoBuffer): v.infer<T> & UnknownFieldsProp {
     // step 1: read wire data into generic object
     const payload: any = {};
     const unknownFields = payload[UnknownFields] = {};
