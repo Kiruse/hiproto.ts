@@ -1,3 +1,4 @@
+import { describe, expect, test } from 'bun:test';
 import { ProtoBuffer } from './protobuffer';
 
 describe('ProtoBuffer', () => {
@@ -155,7 +156,7 @@ describe('ProtoBuffer', () => {
       expect(buffer.writtenBytes()).toStrictEqual(new Uint8Array([0x81, 0x80, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01]));
     });
 
-    it('many read/write', () => {
+    test('many read/write', () => {
       const values = [1, -1, 2, -2, 127, -128, 255, -256];
       const buffer = new ProtoBuffer(new Uint8Array(values.length * 10));
 
@@ -173,12 +174,12 @@ describe('ProtoBuffer', () => {
       }
     });
 
-    it('throw on buffer overflow', () => {
+    test('throw on buffer overflow', () => {
       const buffer = new ProtoBuffer(new Uint8Array(1));
       expect(() => buffer.writeVarint(255)).toThrow('Buffer overflow');
     });
 
-    it('throw on underflow', () => {
+    test('throw on underflow', () => {
       const bytes = new Uint8Array(10);
       let buffer = new ProtoBuffer(bytes);
       buffer.writeVarint(0xFFFFFFFFFFFFFFFFn);
@@ -187,7 +188,7 @@ describe('ProtoBuffer', () => {
       expect(() => buffer.readVarint()).toThrow('Buffer underflow');
     });
 
-    it('length, zigzag', () => {
+    test('length, zigzag', () => {
       expect(ProtoBuffer.zigzagLength(0n)).toBe(1);
       expect(ProtoBuffer.zigzagLength(1n)).toBe(1);
       expect(ProtoBuffer.zigzagLength(2n)).toBe(1);
@@ -206,7 +207,7 @@ describe('ProtoBuffer', () => {
       expect(ProtoBuffer.zigzagLength(-65535n)).toBe(3);
     });
 
-    it('length, no zigzag', () => {
+    test('length, no zigzag', () => {
       expect(ProtoBuffer.varintLength(0n)).toBe(1);
       expect(ProtoBuffer.varintLength(1n)).toBe(1);
       expect(ProtoBuffer.varintLength(2n)).toBe(1);

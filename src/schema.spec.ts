@@ -1,8 +1,9 @@
+import { describe, expect, test } from 'bun:test';
 import { ProtoBuffer } from './protobuffer';
 import { v } from './schema';
 
 describe('schemas', () => {
-  it('bool', () => {
+  test('bool', () => {
     const val = v.bool(1);
     let buffer = new ProtoBuffer(new Uint8Array(2));
     val.codec.encode(true, buffer);
@@ -12,7 +13,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(true);
   });
 
-  it('bool, non-standard', () => {
+  test('bool, non-standard', () => {
     const val = v.bool(1);
     let buffer = new ProtoBuffer(new Uint8Array(2));
     buffer.writeFieldHeader(1, 0);
@@ -23,7 +24,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(true);
   });
 
-  it('float', () => {
+  test('float', () => {
     const val = v.float(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(3.14, buffer);
@@ -33,7 +34,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBeCloseTo(3.14);
   });
 
-  it('double', () => {
+  test('double', () => {
     const val = v.double(1);
     let buffer = new ProtoBuffer(new Uint8Array(9));
     val.codec.encode(3.14159265359, buffer);
@@ -43,7 +44,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBeCloseTo(3.14159265359);
   });
 
-  it('int32', () => {
+  test('int32', () => {
     const val = v.int32(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(42, buffer);
@@ -53,7 +54,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42);
   });
 
-  it('int32 negative', () => {
+  test('int32 negative', () => {
     const val = v.int32(1);
     let buffer = new ProtoBuffer(new Uint8Array(11));
     val.codec.encode(-42, buffer);
@@ -63,7 +64,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(-42);
   });
 
-  it('int32 min/max', () => {
+  test('int32 min/max', () => {
     const val = v.int32(1);
     let buffer = new ProtoBuffer(new Uint8Array(11));
 
@@ -81,7 +82,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(2147483647);
   });
 
-  it('int64', () => {
+  test('int64', () => {
     const val = v.int64(1);
     let buffer = new ProtoBuffer(new Uint8Array(11));
     val.codec.encode(42n, buffer);
@@ -91,7 +92,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42n);
   });
 
-  it('int64 negative', () => {
+  test('int64 negative', () => {
     const val = v.int64(1);
     let buffer = new ProtoBuffer(new Uint8Array(11));
     val.codec.encode(-42n, buffer);
@@ -101,7 +102,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(-42n);
   });
 
-  it('int64 min/max', () => {
+  test('int64 min/max', () => {
     const val = v.int64(1);
     let buffer = new ProtoBuffer(new Uint8Array(11));
 
@@ -119,7 +120,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(9223372036854775807n);
   });
 
-  it('uint32', () => {
+  test('uint32', () => {
     const val = v.uint32(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(42, buffer);
@@ -129,7 +130,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42);
   });
 
-  it('uint64', () => {
+  test('uint64', () => {
     const val = v.uint64(1);
     let buffer = new ProtoBuffer(new Uint8Array(10));
     val.codec.encode(42n, buffer);
@@ -139,7 +140,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42n);
   });
 
-  it('sint32', () => {
+  test('sint32', () => {
     const val = v.sint32(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(-42, buffer);
@@ -149,7 +150,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(-42);
   });
 
-  it('sint64', () => {
+  test('sint64', () => {
     const val = v.sint64(1);
     let buffer = new ProtoBuffer(new Uint8Array(10));
     val.codec.encode(-42n, buffer);
@@ -159,7 +160,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(-42n);
   });
 
-  it('fixed32', () => {
+  test('fixed32', () => {
     const val = v.fixed32(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(42, buffer);
@@ -169,7 +170,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42);
   });
 
-  it('fixed64', () => {
+  test('fixed64', () => {
     const val = v.fixed64(1);
     let buffer = new ProtoBuffer(new Uint8Array(9));
     val.codec.encode(42n, buffer);
@@ -179,7 +180,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42n);
   });
 
-  it('sfixed32', () => {
+  test('sfixed32', () => {
     const val = v.sfixed32(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(-42, buffer);
@@ -189,7 +190,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(-42);
   });
 
-  it('sfixed64', () => {
+  test('sfixed64', () => {
     const val = v.sfixed64(1);
     let buffer = new ProtoBuffer(new Uint8Array(9));
     val.codec.encode(-42n, buffer);
@@ -199,7 +200,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(-42n);
   });
 
-  it('enum', () => {
+  test('enum', () => {
     const val = v.enum(1);
     let buffer = new ProtoBuffer(new Uint8Array(5));
     val.codec.encode(42, buffer);
@@ -209,7 +210,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe(42);
   });
 
-  it('string', () => {
+  test('string', () => {
     const val = v.string(1);
     let buffer = new ProtoBuffer(new Uint8Array(10));
     val.codec.encode('hello', buffer);
@@ -219,7 +220,7 @@ describe('schemas', () => {
     expect(val.codec.decode(buffer)).toBe('hello');
   });
 
-  it('bytes', () => {
+  test('bytes', () => {
     const val = v.bytes(1);
     let buffer = new ProtoBuffer(new Uint8Array(10));
     const data = new Uint8Array([1, 2, 3, 4, 5]);
@@ -231,7 +232,7 @@ describe('schemas', () => {
   });
 
   describe('messages', () => {
-    it('default values', () => {
+    test('default values', () => {
       const schema = v.message({
         flag: v.bool(1),
         count: v.int32(2),
@@ -246,7 +247,7 @@ describe('schemas', () => {
       });
     });
 
-    it('empty wire data', () => {
+    test('empty wire data', () => {
       const schema = v.message({
         flag: v.bool(1),
         count: v.int32(2),
@@ -265,7 +266,7 @@ describe('schemas', () => {
       });
     });
 
-    it('packed fields', () => {
+    test('packed fields', () => {
       const schema = v.message({
         values: v.repeated.int32(1),
       });
@@ -280,7 +281,7 @@ describe('schemas', () => {
       expect(schema.decode(buffer)).toMatchObject({ values: [1, 2, 3] });
     });
 
-    it('missing fields', () => {
+    test('missing fields', () => {
       const schema = v.message({
         flag: v.bool(1),
         count: v.int32(2),
@@ -303,7 +304,7 @@ describe('schemas', () => {
       });
     });
 
-    it('messages', () => {
+    test('messages', () => {
       enum MessageType {
         Unknown = 0,
         Text = 1,
@@ -339,7 +340,7 @@ describe('schemas', () => {
       });
     });
 
-    it('submessage', () => {
+    test('submessage', () => {
       const schema = v.message({
         name: v.string(1),
         payload: v.submessage(2, {
