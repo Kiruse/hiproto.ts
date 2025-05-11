@@ -18,22 +18,31 @@ npm install @kiruse/hiproto
 ```ts
 import { hpb } from '@kiruse/hiproto';
 
-const mySubMessage = hpb.message({
-  foo: hpb.bool(1),
-  bar: hpb.varint(2),
-});
-
-const myTypeSchema = hpb.message({
+const schema = hpb.message({
   foo: hpb.fixed32(1),
   bar: hpb.string(2),
-  baz: hpb.message(4, mySubMessage),
+  baz: hpb.submessage(4, {
+    foo: hpb.bool(1),
+    bar: hpb.varint(2),
+  }),
 });
 
-type MyType = hpb.infer<typeof myTypeSchema>;
+type MyMessage = hpb.infer<typeof myTypeSchema>;
+type MySubmessage = MyMessage['baz'];
 
-const bytes = await loadPayload();
+const encoded = schema.encode({
+  foo: 42,
+  bar: 'foobar',
+  baz: {
+    foo: true,
+    bar: 43,
+  },
+});
 
-const instance: MyType = myTypeSchema.parse(bytes);
+encoded.seek(0);
+
+console.log(encoded.toHex(), encoded.bytes().toUint8Array());
+console.log(schema.decode(encoded));
 ```
 
 *hiproto* more or less mirrors the protobuf language married with zod.
@@ -43,17 +52,17 @@ Following wire format features have been implemented, or will be implemented in 
 
 - [x] Varint
 - [x] Scalars
-- [ ] Submessages
+- [x] Submessages
 - [x] Bytes & Strings
 - [x] Open enums
 - [ ] Full enums
-- [ ] `repeated`, packed
-- [ ] `repeated`, extended
+- [x] `repeated`, packed
+- [x] `repeated`, extended
 - [ ] *One of*'s
 - [ ] *Last one wins*
 - [ ] Maps
 - [ ] Groups
-- [ ] Unknown fields
+- [x] Unknown fields
 - [x] `hpb.infer`
 
 **Note** that *Groups* are deprecated, and thus do not enjoy high priority in this project.
@@ -74,3 +83,32 @@ between *open* and *closed* enums, with *closed* enums allowing only the specifi
 Since the behavior of enums changes depending on how it's been imported and where -with respect to
 the *proto2* or *proto3* syntaxes- this technically requires the capacity to strictly define how our
 enum shall be de/encoded. This feature will be added in a future release.
+
+## Unknown Fields
+Unknown fields are preserved on your decoded object using the `UnknownFields` symbol:
+
+```ts
+import { hpb, UnknownFields } from '@kiruse/hiproto';
+
+const schema1 = hpb.message({
+  flag: hpb.bool(1),
+  name: hpb.string(2),
+});
+
+const schema2 = hpb.message({
+  name: hpb.string(2),
+});
+
+const encoded = schema1.encode({
+  flag: true,
+  name: 'foobar',
+}).seek(0);
+
+const decoded = schema2.decode(encoded);
+console.log(decoded[UnknownFields]);
+```
+
+Unknown fields are preserved when re-encoding the object. However, the raw wire data order is
+unstable and you may receive a different payload than you originally parsed. *protobuf* defines a
+deterministic format, but not a canonical format. Thus, you should refrain from using the wire data
+or derived data such as hashes as indexes.
