@@ -151,4 +151,52 @@ describe('schemas', () => {
       });
     });
   });
+
+  test('transform, single', () => {
+    const schema = v.message({
+      value: v.string(1).transform<bigint>({
+        encode: (value) => value.toString(),
+        decode: (value) => BigInt(value),
+        default: 0n,
+      }),
+    });
+
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode({
+      value: 42n, // 4 bytes (header + len + 2 bytes, actual value is string "42")
+    }, buffer);
+    buffer.seek(0);
+
+    buffer = buffer.toShrunk();
+
+    expect(buffer.writtenLength).toBe(4);
+    expect(schema.decode(buffer)).toMatchObject({ value: 42n });
+  });
+
+  test('transform, double', () => {
+    const schema = v.message({
+      value: v.string(1)
+        .transform<bigint>({
+          encode: (value) => value.toString(),
+          decode: (value) => BigInt(value),
+          default: 0n,
+        })
+        .transform<number>({
+          encode: (value) => BigInt(value),
+          decode: (value) => Number(value),
+          default: 0,
+        }),
+    });
+
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode({
+      value: 42,
+    }, buffer);
+    buffer.seek(0);
+
+    buffer = buffer.toShrunk();
+
+    expect(buffer.writtenLength).toBe(4);
+    expect(schema.decode(buffer)).toMatchObject({ value: 42 });
+  });
 });
