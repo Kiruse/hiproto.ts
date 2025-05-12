@@ -16,11 +16,11 @@ export class Bytes {
 
   constructor(
     buffer: Uint8Array = new Uint8Array(),
-    /** Range that this `Bytes` is restricted to. */
+    /** Range indices that this `Bytes` is restricted to. */
     public readonly range?: [number, number]
   ) {
     this.#buffer = buffer;
-    this.#view = new DataView(this.#buffer.buffer, ...(range ?? [0, buffer.length]));
+    this.#view = getView(this.#buffer, this.range);
   }
 
   get(index: number) {
@@ -43,12 +43,11 @@ export class Bytes {
   }
 
   resize(size: number) {
-    if (!this.resizable)
-      throw new Error('Buffer is not resizable');
+    if (!this.resizable) throw new Error('Buffer overflow');
     const newBuffer = new Uint8Array(size);
     newBuffer.set(this.buffer);
     this.#buffer = newBuffer;
-    this.#view = new DataView(this.#buffer.buffer, ...(this.range ?? [0, this.#buffer.length]));
+    this.#view = getView(this.#buffer, this.range);
     return this;
   }
 
@@ -112,6 +111,11 @@ export class Bytes {
   get resizable() {
     return this.range === undefined;
   }
+}
+
+function getView(buffer: Uint8Array, range?: [number, number]) {
+  const [start = 0, end = buffer.length] = range ?? [0, buffer.length];
+  return new DataView(buffer.buffer, start, end - start);
 }
 
 /** Custom buffer class optimized for reading & writing protobuf wire format. */
