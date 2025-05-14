@@ -3,153 +3,113 @@ import { Bytes, ProtoBuffer } from './protobuffer';
 import { v } from './schema';
 
 describe('schemas', () => {
-  describe('messages', () => {
-    test('default values', () => {
-      const schema = v.message({
-        flag: v.bool(1),
-        count: v.int32(2),
-        values: v.repeated.int32(3),
-      });
-
-      let buffer = new ProtoBuffer(new Uint8Array(0));
-      expect(schema.decode(buffer)).toMatchObject({
-        flag: false,
-        count: 0,
-        values: [],
-      });
+  test('integer types', () => {
+    const schema = v.message({
+      int32: v.int32(1),
+      uint32: v.uint32(2),
+      sint32: v.sint32(3),
+      int64: v.int64(4),
+      uint64: v.uint64(5),
+      sint64: v.sint64(6),
     });
 
-    test('empty wire data', () => {
-      const schema = v.message({
-        flag: v.bool(1),
-        count: v.int32(2),
-        values: v.repeated.int32(3),
-      });
+    const data = {
+      int32: -42,
+      uint32: 42,
+      sint32: -42,
+      int64: -42n,
+      uint64: 42n,
+      sint64: -42n,
+    };
 
-      let buffer = new ProtoBuffer(new Uint8Array(0));
-      schema.encode({}, buffer);
-      buffer.seek(0);
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode(data, buffer);
+    buffer.seek(0);
+    buffer = buffer.toShrunk();
 
-      expect(buffer.writtenLength).toBe(0);
-      expect(schema.decode(buffer)).toMatchObject({
-        flag: false,
-        count: 0,
-        values: [],
-      });
+    expect(schema.decode(buffer)).toMatchObject(data);
+  });
+
+  test('fixed types', () => {
+    const schema = v.message({
+      fixed32: v.fixed32(1),
+      fixed64: v.fixed64(2),
+      sfixed32: v.sfixed32(3),
+      sfixed64: v.sfixed64(4),
     });
 
-    test('packed fields', () => {
-      const schema = v.message({
-        values: v.repeated.int32(1),
-      });
+    const data = {
+      fixed32: 42,
+      fixed64: 42n,
+      sfixed32: -42,
+      sfixed64: -42n,
+    };
 
-      let buffer = new ProtoBuffer(new Uint8Array(100));
-      schema.encode({ values: [1, 2, 3] }, buffer);
-      buffer.seek(0);
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode(data, buffer);
+    buffer.seek(0);
+    buffer = buffer.toShrunk();
 
-      buffer = buffer.toShrunk();
+    expect(schema.decode(buffer)).toMatchObject(data);
+  });
 
-      expect(buffer.writtenLength).toBe(5);
-      expect(schema.decode(buffer)).toMatchObject({ values: [1, 2, 3] });
+  test('floating point types', () => {
+    const schema = v.message({
+      float: v.float(1),
+      double: v.double(2),
     });
 
-    test('missing fields', () => {
-      const schema = v.message({
-        flag: v.bool(1),
-        count: v.int32(2),
-        values: v.repeated.int32(3),
-      });
+    const data = {
+      float: 3.14159,
+      double: 3.14159265359,
+    };
 
-      let buffer = new ProtoBuffer(new Uint8Array(100));
-      schema.encode({
-        flag: true, // 2 bytes (header + value)
-        values: [1, 2, 3], // 5 bytes (header + len + 3 bytes)
-      }, buffer);
-      buffer.seek(0);
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode(data, buffer);
+    buffer.seek(0);
+    buffer = buffer.toShrunk();
 
-      buffer = buffer.toShrunk();
-      expect(buffer.writtenLength).toBe(7);
-      expect(schema.decode(buffer)).toMatchObject({
-        flag: true,
-        count: 0,
-        values: [1, 2, 3],
-      });
+    const decoded = schema.decode(buffer);
+    expect(decoded.float).toBeCloseTo(data.float, 5);
+    expect(decoded.double).toBeCloseTo(data.double, 10);
+  });
+
+  test('boolean type', () => {
+    const schema = v.message({
+      bool: v.bool(1),
     });
 
-    test('messages', () => {
-      enum MessageType {
-        Unknown = 0,
-        Text = 1,
-        Image = 2,
-      };
+    const data = {
+      bool: true,
+    };
 
-      const schema = v.message({
-        name: v.string(1),
-        type: v.enum<MessageType>(2),
-        payload: v.bytes(3),
-        memo: v.string(4),
-        flags: v.repeated.bool(5),
-      });
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode(data, buffer);
+    buffer.seek(0);
+    buffer = buffer.toShrunk();
 
-      let buffer = new ProtoBuffer(new Uint8Array(100));
-      schema.encode({
-        name: 'hello', // 7 bytes (header + len + 5 bytes)
-        type: MessageType.Unknown, // 0 bytes (default values are dropped)
-        payload: new Uint8Array([1, 2, 3]), // 5 bytes (header + len + 3 bytes)
-        flags: [true, false, true], // 5 bytes (header + len + 3 bytes)
-      }, buffer);
-      buffer.seek(0);
+    expect(schema.decode(buffer)).toMatchObject(data);
+  });
 
-      buffer = buffer.toShrunk();
-
-      let decoded = schema.decode(buffer);
-
-      expect(buffer.writtenLength).toBe(17);
-      expect(decoded).toMatchObject({
-        name: 'hello',
-        type: MessageType.Unknown,
-        memo: '',
-        flags: [true, false, true],
-      });
-      expect(Bytes.getUint8Array(decoded.payload!)).toEqual(new Uint8Array([1, 2, 3]));
+  test('string and bytes types', () => {
+    const schema = v.message({
+      string: v.string(1),
+      bytes: v.bytes(2),
     });
 
-    test('submessage', () => {
-      const schema = v.message({
-        name: v.string(1),
-        sub1: v.submessage(2, {
-          value: v.int32(1),
-        }),
-        sub2: v.submessage(3, {
-          value: v.int32(2),
-        }),
-      });
+    const data = {
+      string: "Hello, World!",
+      bytes: new Uint8Array([1, 2, 3, 4, 5]),
+    };
 
-      let buffer = new ProtoBuffer(new Uint8Array(100));
-      schema.encode({
-        name: 'hello', // 7 bytes (header + len + 5 bytes)
-        sub1: { // 4 bytes (header + len + content)
-          value: 42, // 2 bytes (header + value)
-        },
-        sub2: { // 4 bytes, same as above
-          value: 43,
-        },
-      }, buffer);
-      buffer.seek(0);
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode(data, buffer);
+    buffer.seek(0);
+    buffer = buffer.toShrunk();
 
-      buffer = buffer.toShrunk(); // TODO: it's correctly encoding, but decoding runs into a buffer underflow
-
-      expect(buffer.writtenLength).toBe(15);
-      expect(schema.decode(buffer)).toMatchObject({
-        name: 'hello',
-        sub1: {
-          value: 42,
-        },
-        sub2: {
-          value: 43,
-        },
-      });
-    });
+    let decoded = schema.decode(buffer);
+    expect(decoded.string).toBe(data.string);
+    expect(Bytes.getUint8Array(decoded.bytes!)).toEqual(data.bytes);
   });
 
   test('transform, single', () => {

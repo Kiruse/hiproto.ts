@@ -20,13 +20,13 @@ export interface Codec<In> {
   isDefault(value: In): boolean;
 }
 
-export interface TransformCodecParameters<Base, Transformed> {
+export interface TransformParameters<Base, Transformed> {
   get default(): Transformed;
   encode: (value: Transformed) => Base;
   decode: (value: Base) => Transformed;
 }
 
-export function transformCodec<T1, T2>(codec: Codec<T1>, sub: TransformCodecParameters<T1, T2>): Codec<T2> {
+export function transformCodec<T1, T2>(codec: Codec<T1>, sub: TransformParameters<T1, T2>): Codec<T2> {
   return {
     get wiretype() { return codec.wiretype; },
     get default() { return sub.default; },

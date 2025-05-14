@@ -177,7 +177,6 @@ describe('ProtoBuffer', () => {
 
     test('throw on buffer overflow', () => {
       const buffer = new ProtoBuffer(new Bytes(new Uint8Array(1), [0, 1]));
-      console.log(buffer.toHex());
       debugger;
       expect(() => buffer.writeVarint(255)).toThrow('Buffer overflow');
     });

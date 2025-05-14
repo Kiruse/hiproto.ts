@@ -3,6 +3,7 @@ import { ProtoBuffer } from './protobuffer';
 import { DecodeError } from './errors';
 import { WireType } from './protobuffer';
 import type { FieldSchema, Validator } from './schema';
+import { TransformParameters } from './codecs';
 
 export type MessageFields = Record<string, FieldSchema<any, any>>;
 
@@ -18,7 +19,18 @@ enum EncodeMode {
   Expanded,
 }
 
-export class Message<T extends MessageFields> implements Validator<Infer<T>, 'message'> {
+interface IMessage<T extends MessageFields, U> extends Validator<U, 'message'> {
+  readonly [InferType]: U;
+  readonly type: 'message';
+  readonly fields: Readonly<T>;
+
+  encode(value: U, buffer?: ProtoBuffer): ProtoBuffer;
+  decode(buffer: ProtoBuffer | Uint8Array): U & UnknownFieldsProp;
+  length(value: U): number;
+  transform<V extends {}>(params: TransformParameters<U, V>): IMessage<T, V>;
+}
+
+export class Message<T extends MessageFields> implements IMessage<T, Infer<T>> {
   readonly [InferType]: Infer<T> = undefined as any;
   readonly type = 'message';
   #fieldIndex: Record<number, string> = {};
@@ -78,7 +90,9 @@ export class Message<T extends MessageFields> implements Validator<Infer<T>, 'me
     return buffer;
   }
 
-  decode(buffer: ProtoBuffer): Infer<T> & UnknownFieldsProp {
+  decode(buffer: ProtoBuffer | Uint8Array): Infer<T> & UnknownFieldsProp {
+    if (buffer instanceof Uint8Array) buffer = new ProtoBuffer(buffer);
+
     // step 1: read wire data into generic object
     const payload: any = {};
     const unknownFields = payload[UnknownFields] = {};
@@ -138,6 +152,39 @@ export class Message<T extends MessageFields> implements Validator<Infer<T>, 'me
     }
     return length;
   }
+
+  transform<V extends {}>(params: TransformParameters<Infer<T>, V>): IMessage<T, V> {
+    return new MessageTransformer<T, V>(this, params);
+  }
+}
+
+class MessageTransformer<T extends MessageFields, U extends {}> implements IMessage<T, U> {
+  readonly [InferType]: U = undefined as any;
+  readonly type = 'message';
+
+  constructor(
+    private readonly _parent: IMessage<T, any>,
+    private readonly _params: TransformParameters<any, U>,
+  ) {}
+
+  encode(value: U, buffer = new ProtoBuffer()) {
+    return this._parent.encode(this._params.encode(value), buffer);
+  }
+
+  decode(buffer: ProtoBuffer | Uint8Array): U & UnknownFieldsProp {
+    const payload = this._parent.decode(buffer);
+    return Object.assign(this._params.decode(payload), { [UnknownFields]: payload[UnknownFields] });
+  }
+
+  length(value: U): number {
+    return this._parent.length(this._params.encode(value));
+  }
+
+  transform<V extends {}>(params: TransformParameters<U, V>): IMessage<T, V> {
+    return new MessageTransformer<T, V>(this, params);
+  }
+
+  get fields() { return this._parent.fields; }
 }
 
 function pushValue(obj: any, key: PropertyKey, value: any) {

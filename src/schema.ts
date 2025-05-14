@@ -1,4 +1,4 @@
-import { codecs, transformCodec, type TransformCodecParameters } from './codecs';
+import { codecs, transformCodec, type TransformParameters } from './codecs';
 import type { Codec, CodecFactory, CodecType } from './codecs';
 import { InferType, Repeatedness, type Infer } from './commons';
 import { Message, type MessageFields } from './message';
@@ -24,7 +24,7 @@ export interface FieldSchema<T, S extends string> extends Validator<T, S> {
 }
 
 interface FieldSchemaWithTransform<In, S extends string> extends FieldSchema<In, S> {
-  transform: <Out>(params: TransformCodecParameters<In, Out>) => FieldSchemaWithTransform<Out, S>;
+  transform: <Out>(params: TransformParameters<In, Out>) => FieldSchemaWithTransform<Out, S>;
 }
 
 export type Schemas = SimpleSchemas & GenericSchemas;
@@ -79,7 +79,7 @@ function getSchemaFactory<T1, Args extends any[]>(
 
 function addTransform<T, S extends string>(schema: FieldSchema<T, S>): FieldSchemaWithTransform<T, S> {
   return Object.assign(schema, {
-    transform: <T2>(sub: TransformCodecParameters<T, T2>) =>
+    transform: <T2>(sub: TransformParameters<T, T2>) =>
       addTransform(createSchema({ ...schema, codec: transformCodec(schema.codec, sub) })),
   });
 }

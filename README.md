@@ -64,6 +64,7 @@ Following wire format features have been implemented, or will be implemented in 
 - [ ] Groups
 - [x] Unknown fields
 - [x] `hpb.infer`
+- [x] Transforms
 
 **Note** that *Groups* are deprecated, and thus do not enjoy high priority in this project.
 
@@ -112,3 +113,46 @@ Unknown fields are preserved when re-encoding the object. However, the raw wire 
 unstable and you may receive a different payload than you originally parsed. *protobuf* defines a
 deterministic format, but not a canonical format. Thus, you should refrain from using the wire data
 or derived data such as hashes as indexes.
+
+## Transforms
+Sometimes, messages can contain further serialized data, such as stringified `BigInt`s. You can
+attach transforms to both messages and individual fields to pull further parsing and validation into
+the transmission pipeline:
+
+```ts
+import { hpb, type TransformParameters } from '@kiruse/hiproto';
+
+class Foo {
+  constructor(
+    public amount: bigint,
+    public denom: string,
+  ) {}
+
+  toString() {
+    `${amount} $${denom}`;
+  }
+}
+
+// You don't have to pull the params out, but it allows reusing it
+const bigintTransform: TransformParameters<string, bigint> = {
+  encode: (value: bigint) => value.toString(),
+  decode: (value: string) => BigInt(value),
+  default: 0n,
+};
+
+const schema = hpb.message({
+  denom: hpb.string(1),
+  amount: hpb.string(2).transform(bigintTransform),
+})
+.transform<Foo>({
+  encode: ({ amount, denom }: Foo) => ({ amount, denom }),
+  decode: ({ amount, denom }) => new Foo(amount ?? 0n, denom ?? 'usd'),
+  get default() { return new Foo(0n, 'usd') },
+});
+
+const bytes = schema.encode(new Foo(100n, 'usd'));
+bytes.seek(0);
+
+const decoded = schema.decode(bytes);
+console.log(decoded instanceof Foo, decoded.toString());
+```
