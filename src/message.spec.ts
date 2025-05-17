@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { v } from './schema';
 import { Bytes, ProtoBuffer } from './protobuffer';
+import { IMessage } from './message';
 
 describe('messages', () => {
   test('default values', () => {
@@ -202,40 +203,43 @@ describe('messages', () => {
   });
 
   test('nested transform', () => {
-    const innerSchema = v.message({
-      value: v.int32(1),
+    const innerMsg = v.message({
+      value: v.string(1),
+    }).transform<{ value: bigint }>({
+      encode: (value) => ({ value: value.value.toString() }),
+      decode: (value) => ({ value: BigInt(value.value ?? 0) }),
+      default: { value: 0n },
     });
 
-    const schema = v.message({
+    const schema1 = v.message({
+      id: v.int32(1),
+      inner: v.submessage(2, innerMsg),
+    });
+
+    let data: any = {
+      id: 42,
+      inner: { value: 123n },
+    };
+
+    let encoded = schema1.encode(data, new ProtoBuffer(new Uint8Array(100))).seek(0).toShrunk();
+    let decoded = schema1.decode(encoded);
+    expect(decoded).toMatchObject({
+      id: 42,
+      inner: { value: 123n },
+    });
+
+    const schema2 = v.message({
       id: v.int32(1),
       inner: v.submessage(2, {
-        value: v.int32(1),
+        value: v.string(1),
       }),
     });
 
-    const data = {
+    // Verify that the transformation is applied afterwards and not baked into the wire data.
+    let decoded2 = schema2.decode(encoded.seek(0));
+    expect(decoded2).toMatchObject({
       id: 42,
-      inner: { value: 123 },
-    };
-
-    let buffer = new ProtoBuffer(new Uint8Array(100));
-    schema.encode(data, buffer);
-    buffer.seek(0);
-    buffer = buffer.toShrunk();
-
-    const decoded = schema.decode(buffer);
-    expect(decoded).toMatchObject({
-      id: 42,
-      inner: { value: 123 },
-    });
-
-    // Verify the transformation is applied during encoding
-    const encoded = schema.encode(data, new ProtoBuffer(new Uint8Array(100)));
-    encoded.seek(0);
-    const rawDecoded = schema.decode(encoded);
-    expect(rawDecoded).toMatchObject({
-      id: 42,
-      inner: { value: 123 },
+      inner: { value: '123' },
     });
   });
 });

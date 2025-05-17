@@ -1,6 +1,6 @@
-import type { Infer } from './commons';
+import { InferType, type Infer } from './commons';
 import { EncodeError } from './errors';
-import { MessageFields, Message } from './message';
+import { MessageFields, Message, IMessage } from './message';
 import { Bytes, ProtoBuffer, WireType } from './protobuffer';
 
 export type CodecMap = typeof codecs;
@@ -324,38 +324,42 @@ export const codecs = {
     }
   } as Codec<Uint8Array | Bytes>,
 
-  submessage: <T extends MessageFields>(fields: T): Codec<Infer<T>> => {
-    const msg = new Message(fields);
+  submessage: <T extends MessageFields, U = Infer<T>>(fields: T | IMessage<T, U>): Codec<U> => {
+    const isIMessage = (value: any): value is IMessage<T, U> => InferType in value && value['type'] === 'message' && 'fields' in value;
+    const msg: IMessage<T, U> = isIMessage(fields) ? fields : new Message<T>(fields) as IMessage<T, U>;
+    const fields_ = msg.fields;
 
     return {
       get wiretype() { return WireType.Len; },
       get default() {
         const result: any = {};
-        for (const key in fields) {
-          result[key] = fields[key]!.codec.default;
+        for (const key in fields_) {
+          result[key] = fields_[key]!.codec.default;
         }
         return result;
       },
-      isDefault(value: Infer<T>) {
-        for (const key in fields) {
-          if (!fields[key]!.codec.isDefault(value[key])) {
+
+      isDefault(value: U) {
+        for (const key in fields_) {
+          if (!fields_[key]!.codec.isDefault((value as any)[key])) {
             return false;
           }
         }
         return true;
       },
-      encode(value: Infer<T>, buffer: ProtoBuffer) {
+
+      encode(value: U, buffer: ProtoBuffer) {
         const length = msg.length(value);
         buffer.writeVarint(length);
         msg.encode(value, buffer);
       },
 
-      decode(buffer: ProtoBuffer): Infer<T> {
+      decode(buffer: ProtoBuffer): U {
         const length = Number(buffer.readVarint());
-        return msg.decode(buffer.slice(length)) as any;
+        return msg.decode(buffer.slice(length)) as U;
       },
 
-      length(value: Infer<T>): number {
+      length(value: U): number {
         const length = msg.length(value);
         return ProtoBuffer.varintLength(length) + length;
       }

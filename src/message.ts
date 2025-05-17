@@ -5,7 +5,7 @@ import { WireType } from './protobuffer';
 import type { FieldSchema, Validator } from './schema';
 import { TransformParameters } from './codecs';
 
-export type MessageFields = Record<string, FieldSchema<any, any>>;
+export type MessageFields = Record<PropertyKey, FieldSchema<any, any>>;
 
 export type UnknownFieldsProp = {
   [UnknownFields]?: Record<number, { index: number, wiretype: WireType, value: any }>;
@@ -19,7 +19,7 @@ enum EncodeMode {
   Expanded,
 }
 
-interface IMessage<T extends MessageFields, U> extends Validator<U, 'message'> {
+export interface IMessage<T extends MessageFields, U> extends Validator<U, 'message'> {
   readonly [InferType]: U;
   readonly type: 'message';
   readonly fields: Readonly<T>;

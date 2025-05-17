@@ -1,7 +1,7 @@
 import { codecs, transformCodec, type TransformParameters } from './codecs';
 import type { Codec, CodecFactory, CodecType } from './codecs';
 import { InferType, Repeatedness, type Infer } from './commons';
-import { Message, type MessageFields } from './message';
+import { IMessage, Message, type MessageFields } from './message';
 import { WireType } from './protobuffer';
 
 export interface Validator<T = unknown, S extends string = string> {
@@ -36,12 +36,14 @@ type SimpleRepeatedSchemas = { [K in SimpleSchemaTypes]: (index: number) => Fiel
 
 interface GenericSchemas {
   enum: <T extends number>(index: number) => FieldSchemaWithTransform<T, 'enum'>;
-  submessage: <T extends MessageFields>(index: number, fields: T) => FieldSchemaWithTransform<v.infer<T>, 'submessage'>;
+  submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<Infer<T>, 'submessage'>;
+  submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U, 'submessage'>;
 };
 
 interface GenericRepeatedSchemas {
   enum: <T extends number>(index: number) => FieldSchemaWithTransform<T[], 'enum'>;
-  submessage: <T extends MessageFields>(index: number, fields: T) => FieldSchemaWithTransform<v.infer<T>[], 'submessage'>;
+  submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<v.infer<T>[], 'submessage'>;
+  submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U[], 'submessage'>;
 };
 
 interface SchemaParameters<T, S extends string> {
