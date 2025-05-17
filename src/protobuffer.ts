@@ -420,6 +420,15 @@ export class ProtoBuffer {
     return this.#buffer.toHex();
   }
 
+  /** Returns a `Uint8Array` that represents the bytes in the buffer.
+   *
+   * Often, you will want to chain this with `buffer.toShrunk().toUint8Array()` after serializing
+   * data as the underlying buffer may be larger than necessary.
+   */
+  toUint8Array() {
+    return this.#buffer.toUint8Array();
+  }
+
   static fromHex(hex: string) {
     return new ProtoBuffer(Bytes.fromHex(hex));
   }
