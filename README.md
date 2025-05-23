@@ -156,3 +156,27 @@ bytes.seek(0);
 const decoded = schema.decode(bytes);
 console.log(decoded instanceof Foo, decoded.toString());
 ```
+
+## Low-Level Caveat
+Due to how protobuf `repeated` works, codecs themselves do not actually handle arrays. `repeated`
+only makes sense in the context of containing messages. Thus, the following snippet will not deliver
+the expected result:
+
+```ts
+import hpb from '@kiruse/hiproto';
+
+const val = hpb.repeated.uint32(1);
+console.log(val.length([1, 2, 3])); // will throw b/c array is not supported by underlying codec
+```
+
+As protobuf is only really concerned with full messages, you should always operate on messages, not
+individual fields. The following snippet will work as intended:
+
+```ts
+import hpb from '@kiruse/hiproto';
+
+const val = hpb.message({
+  values: hpb.repeated.uint32(1),
+});
+console.log(val.length({ values: [1, 2, 3] }));
+```

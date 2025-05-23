@@ -23,7 +23,7 @@ export interface FieldSchema<T, S extends string> extends Validator<T, S> {
   codec: Codec<T>;
 }
 
-interface FieldSchemaWithTransform<In, S extends string> extends FieldSchema<In, S> {
+export interface FieldSchemaWithTransform<In, S extends string> extends FieldSchema<In, S> {
   transform: <Out>(params: TransformParameters<In, Out>) => FieldSchemaWithTransform<Out, S>;
 }
 

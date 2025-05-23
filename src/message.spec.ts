@@ -151,6 +151,33 @@ describe('messages', () => {
     });
   });
 
+  test('repeated submessage', () => {
+    const schema = v.message({
+      name: v.string(1),
+      submessages: v.repeated.submessage(2, { value: v.int32(1) }),
+    });
+
+    let buffer = new ProtoBuffer(new Uint8Array(100));
+    schema.encode({
+      name: 'hello', // 7 bytes (header + len + 5 bytes)
+      // note that expanded items don't have additional overhead as they're just written as individual
+      // items, not as a group
+      submessages: [ // 8 bytes (items * 2)
+        { value: 42 }, // 4 bytes (header + len + content (header + 1 byte))
+        { value: 43 }, // 4 bytes, same as above
+      ],
+    }, buffer);
+    buffer.seek(0);
+
+    buffer = buffer.toShrunk();
+
+    expect(buffer.writtenLength).toBe(15);
+    expect(schema.decode(buffer)).toMatchObject({
+      name: 'hello',
+      submessages: [{ value: 42 }, { value: 43 }],
+    });
+  });
+
   test('transform', () => {
     // Define a message schema with various field types
     const schema = v.message({

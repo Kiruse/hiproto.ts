@@ -230,4 +230,11 @@ describe('codecs', () => {
     expect(buffer.writtenLength).toBe(6);
     expect(Bytes.getUint8Array(val.codec.decode(buffer))).toEqual(data);
   });
+
+  test('packed', () => {
+    let val = v.message({
+      values: v.repeated.float(1),
+    });
+    expect(val.length({ values: [3.14, 2.718, 1.618] })).toBe(2 + 4 * 3);
+  });
 });

@@ -64,16 +64,15 @@ export class Message<T extends MessageFields> implements IMessage<T, Infer<T>> {
           const byteLength = val[field].reduce((acc: number, item: any) => acc + schema.codec.length(item), 0);
           buffer.writeFieldHeader(schema.index, WireType.Len);
           buffer.writeVarint(byteLength);
-          buffer.assertCapacity(byteLength);
+          buffer.ensureCapacity(byteLength);
           for (const item of val[field] as any[]) {
             schema.codec.encode(item, buffer);
           }
           break;
         }
         case EncodeMode.Expanded: {
-          buffer.writeFieldHeader(schema.index, schema.wiretype);
           for (const item of val[field] as any[]) {
-            buffer.writeVarint(schema.codec.length(item));
+            buffer.writeFieldHeader(schema.index, schema.wiretype);
             schema.codec.encode(item, buffer);
           }
           break;
@@ -147,8 +146,34 @@ export class Message<T extends MessageFields> implements IMessage<T, Infer<T>> {
   length(value: Infer<T>): number {
     let length = 0;
     for (const [key, schema] of Object.entries(this.fields) as [keyof T, FieldSchema<any, string>][] ) {
-      // extra 1 byte for the field header
-      length += 1 + schema.length(value[key as keyof Infer<T>]);
+      const encodeMode = getEncodeMode(schema);
+      switch (encodeMode) {
+        case EncodeMode.Single:
+          // extra 1 byte for the field header
+          length += 1 + schema.length(value[key as keyof Infer<T>]);
+          break;
+        case EncodeMode.Packed: {
+          const values: unknown = value[key as keyof Infer<T>];
+          if (!Array.isArray(values))
+            throw new DecodeError(`Field ${key.toString()} is packed, but value is not an array`);
+          // extra 1 byte for the field header + byte length, packed
+          length += 2;
+          for (const item of values) {
+            length += schema.length(item);
+          }
+          break;
+        }
+        case EncodeMode.Expanded: {
+          const values: unknown = value[key as keyof Infer<T>];
+          if (!Array.isArray(values))
+            throw new DecodeError(`Field ${key.toString()} is expanded, but value is not an array`);
+          for (const item of values) {
+            // extra 1 byte for the field header, for each item
+            length += 1 + schema.length(item);
+          }
+          break;
+        }
+      }
     }
     return length;
   }
