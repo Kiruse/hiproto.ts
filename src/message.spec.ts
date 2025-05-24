@@ -269,4 +269,50 @@ describe('messages', () => {
       inner: { value: '123' },
     });
   });
+
+  test('complex', () => {
+    const schema = v.message({
+      sender: v.string(1),
+      metadata: v.submessage(2, {
+        description: v.string(1),
+        denomUnits: v.repeated.submessage(2, {
+          denom: v.string(1),
+          exponent: v.uint32(2),
+          aliases: v.repeated.string(3),
+        }),
+        base: v.string(3),
+        display: v.string(4),
+        name: v.string(5),
+        symbol: v.string(6),
+        uri: v.string(7),
+        uriHash: v.string(8),
+      }),
+    });
+
+    debugger;
+    const payload = { // 48 + 271 = 319 bytes
+      sender: 'neutron15fa97l48ru95cks5xj4hd8l5xy6vctp2p38mls', // 48 bytes
+      metadata: { // 3 (header + 2 bytes len) + 84 + 83 + 62 + 7 + 25 + 7 = 271 bytes
+        description: 'As the name suggests, this is just another test token. Nothing more, nothing less.', // 84 bytes
+        denomUnits: [ // (2 + 70) + (2 + 9) = 83 bytes (first number is header + len)
+          { // 62 + 0 + 8 = 70 bytes
+            denom: 'factory/neutron15fa97l48ru95cks5xj4hd8l5xy6vctp2p38mls/jatto', // 62 bytes
+            exponent: 0, // 0 bytes (default value)
+            aliases: ['ujatto' /* 8 bytes */], // 8 bytes
+          },
+          { // 7 + 2 = 9 bytes
+            denom: 'jatto', // 7 bytes
+            exponent: 6, // 2 bytes
+          },
+        ],
+        base: 'factory/neutron15fa97l48ru95cks5xj4hd8l5xy6vctp2p38mls/jatto', // 62 bytes
+        display: 'jatto', // 7 bytes
+        name: 'Just Another Test Token', // 25 bytes
+        symbol: 'JATTO', // 7 bytes
+      },
+    };
+    const encoded = schema.encode(payload).toShrunk().seek(0);
+    expect(schema.length(payload)).toBe(319);
+    expect(encoded.writtenLength).toBe(319);
+  });
 });
