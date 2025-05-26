@@ -157,6 +157,38 @@ const decoded = schema.decode(bytes);
 console.log(decoded instanceof Foo, decoded.toString());
 ```
 
+## JSON Codec
+There exists a special, non-standard yet useful schema to encode arbitrary JSON data as a string in
+different encodings - currently 'raw' for raw JSON strings, and 'base64' and 'hex' for corresponding
+encodings.
+
+This special codec is simply an extension of the `string` codec, which in turn is an extension of
+the `bytes` codec. This codec was introduced as an example for a non-standard codec, but also for a
+special use case of my own.
+
+```ts
+import hpb from '@kiruse/hiproto';
+
+const schema = hpb.message({
+  name: hpb.string(1),
+  flag: hpb.boolean(2),
+  scale: hpb.float(3),
+  extra: hpb.json(4, 'raw'),
+});
+
+const encoded = schema.encode({
+  name: 'hello, world!',
+  flag: true,
+  scale: 1.2,
+  extra: {
+    foo: 123,
+    bar: 'baz',
+  },
+}).toShrunk().seek(0);
+
+console.log(schema.decode(encoded));
+```
+
 ## Low-Level Caveat
 Due to how protobuf `repeated` works, codecs themselves do not actually handle arrays. `repeated`
 only makes sense in the context of containing messages. Thus, the following snippet will not deliver

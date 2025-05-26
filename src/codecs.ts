@@ -365,4 +365,67 @@ export const codecs = {
       }
     };
   },
+
+  json: <T extends {}>(encoding: 'raw' | 'base64' | 'hex' = 'base64'): Codec<Partial<T>> => {
+    const encode = (value: Partial<T>) => {
+      const json = JSON.stringify(value);
+      switch (encoding) {
+        case 'raw': return json;
+        case 'base64': return toBase64(new TextEncoder().encode(json));
+        case 'hex': return toHex(new TextEncoder().encode(json));
+      }
+    };
+
+    const decode = (value: string) => {
+      switch (encoding) {
+        case 'raw': return JSON.parse(value);
+        case 'base64': return JSON.parse(new TextDecoder().decode(fromBase64(value)));
+        case 'hex': return JSON.parse(new TextDecoder().decode(fromHex(value)));
+      }
+    };
+
+    return {
+      get wiretype() { return WireType.Len; },
+      get default() { return {}; },
+      isDefault(value: T) { return Object.keys(value).length === 0; },
+
+      encode(value: T, buffer: ProtoBuffer) {
+        return codecs.string.encode(encode(value), buffer);
+      },
+
+      decode(buffer: ProtoBuffer) {
+        return decode(codecs.string.decode(buffer));
+      },
+
+      length(value: T) {
+        return codecs.string.length(encode(value));
+      },
+    }
+  },
 };
+
+function toBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function fromBase64(str: string): Uint8Array {
+  const binary = atob(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function fromHex(str: string): Uint8Array {
+  if (str.length % 2 !== 0)
+    throw new Error('Hex string must have an even number of characters');
+  const matches = str.match(/[0-9a-fA-F]{2}/g) || [];
+  return new Uint8Array(matches.map(byte => parseInt(byte, 16)));
+}

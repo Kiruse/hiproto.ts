@@ -237,4 +237,57 @@ describe('codecs', () => {
     });
     expect(val.length({ values: [3.14, 2.718, 1.618] })).toBe(2 + 4 * 3);
   });
+
+  describe('json', () => {
+    test('raw', () => {
+      const val = v.json(1, 'raw');
+      let buffer = new ProtoBuffer();
+      val.codec.encode({ a: 1, b: 2 }, buffer);
+      buffer = buffer.toShrunk().seek(0);
+
+      const refRaw = '{"a":1,"b":2}';
+      const refBytes = new TextEncoder().encode(refRaw);
+      const ref = new Uint8Array(refBytes.length + 1);
+      ref.set(refBytes, 1);
+      ref[0] = refRaw.length;
+      expect(buffer.toUint8Array()).toMatchObject(ref);
+
+      expect(buffer.writtenLength).toBe(ref.length);
+      expect(val.codec.decode(buffer)).toEqual({ a: 1, b: 2 });
+    });
+
+    test('base64', () => {
+      const val = v.json(1);
+      let buffer = new ProtoBuffer();
+      val.codec.encode({ a: 1, b: 2 }, buffer);
+      buffer = buffer.toShrunk().seek(0);
+
+      const refB64 = 'eyJhIjoxLCJiIjoyfQ==';
+      const refBytes = new TextEncoder().encode(refB64);
+      const ref = new Uint8Array(refBytes.length + 1);
+      ref.set(refBytes, 1);
+      ref[0] = refB64.length;
+      expect(buffer.toUint8Array()).toMatchObject(ref);
+
+      expect(buffer.writtenLength).toBe(ref.length);
+      expect(val.codec.decode(buffer)).toEqual({ a: 1, b: 2 });
+    });
+
+    test('hex', () => {
+      const val = v.json(1, 'hex');
+      let buffer = new ProtoBuffer();
+      val.codec.encode({ a: 1, b: 2 }, buffer);
+      buffer = buffer.toShrunk().seek(0);
+
+      const refHex = '7b2261223a312c2262223a327d';
+      const refBytes = new TextEncoder().encode(refHex);
+      const ref = new Uint8Array(refBytes.length + 1);
+      ref.set(refBytes, 1);
+      ref[0] = refHex.length;
+      expect(buffer.toUint8Array()).toMatchObject(ref);
+
+      expect(buffer.writtenLength).toBe(ref.length);
+      expect(val.codec.decode(buffer)).toEqual({ a: 1, b: 2 });
+    });
+  });
 });
