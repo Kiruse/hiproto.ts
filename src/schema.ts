@@ -38,14 +38,14 @@ interface GenericSchemas {
   enum: <T extends number>(index: number) => FieldSchemaWithTransform<T, 'enum'>;
   submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<Infer<T>, 'submessage'>;
   submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U, 'submessage'>;
-  json: <T extends {}>(index: number, encoding?: 'raw' | 'base64' | 'hex') => FieldSchemaWithTransform<Partial<T>, 'json'>;
+  json: <T extends {}>(index: number) => FieldSchemaWithTransform<Partial<T>, 'json'>;
 };
 
 interface GenericRepeatedSchemas {
   enum: <T extends number>(index: number) => FieldSchemaWithTransform<T[], 'enum'>;
   submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<v.infer<T>[], 'submessage'>;
   submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U[], 'submessage'>;
-  json: <T extends {}>(index: number, encoding?: 'raw' | 'base64' | 'hex') => FieldSchemaWithTransform<Partial<T>[], 'json'>;
+  json: <T extends {}>(index: number) => FieldSchemaWithTransform<Partial<T>[], 'json'>;
 };
 
 interface SchemaParameters<T, S extends string> {

@@ -158,11 +158,8 @@ console.log(decoded instanceof Foo, decoded.toString());
 ```
 
 ## JSON Codec
-There exists a special, non-standard yet useful schema to encode arbitrary JSON data as a string in
-different encodings - currently 'raw' for raw JSON strings, and 'base64' and 'hex' for corresponding
-encodings.
-
-This special codec is simply an extension of the `string` codec, which in turn is an extension of
+There exists a special, non-standard yet useful schema to encode arbitrary data as a JSON-encoded
+string. This codec is simply an extension of the `string` codec, which in turn is an extension of
 the `bytes` codec. This codec was introduced as an example for a non-standard codec, but also for a
 special use case of my own.
 
