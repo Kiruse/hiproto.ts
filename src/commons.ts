@@ -1,7 +1,7 @@
 import type { Message, MessageFields } from './message';
 import type { FieldSchema } from './schema';
 
-export const InferType = Symbol('InferType');
+export const InferType = '@@hiprotoInferType@@';
 
 /** Repeatedness indicates whether a field should be an array or not. The different modes of
  * Repeatedness only affect the encoding process. Typically, `Default` should suffice for all
