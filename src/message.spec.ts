@@ -86,7 +86,7 @@ describe('messages', () => {
     const schema = v.message({
       name: v.string(1),
       type: v.enum<MessageType>(2),
-      payload: v.bytes(3),
+      payload: v.bytes(3).required(),
       memo: v.string(4),
       flags: v.repeated.bool(5),
     });
@@ -289,7 +289,6 @@ describe('messages', () => {
       }),
     });
 
-    debugger;
     const payload = { // 48 + 271 = 319 bytes
       sender: 'neutron15fa97l48ru95cks5xj4hd8l5xy6vctp2p38mls', // 48 bytes
       metadata: { // 3 (header + 2 bytes len) + 84 + 83 + 62 + 7 + 25 + 7 = 271 bytes
@@ -314,5 +313,31 @@ describe('messages', () => {
     const encoded = schema.encode(payload).toShrunk().seek(0);
     expect(schema.length(payload)).toBe(319);
     expect(encoded.writtenLength).toBe(319);
+  });
+
+  test('required', () => {
+    // note: `required` is a decode-time check and has no actual effect on the wire data
+    // for encoding, it's just an ephemeral type check
+    const schema = v.message({
+      name: v.string(1).required(),
+      payload: v.bytes(2).required(),
+      vector: v.repeated.float(3).required(),
+      flags: v.uint32(4).required(),
+    });
+
+    // construct invalid payload
+    const encoded = v.message({
+      name: v.string(1),
+    }).encode({
+      name: 'hello',
+    }).toShrunk().seek(0);
+
+    const decoded = schema.decode(encoded);
+    expect(decoded).toMatchObject({
+      name: 'hello',
+      payload: new Uint8Array(),
+      vector: [],
+      flags: 0,
+    });
   });
 });

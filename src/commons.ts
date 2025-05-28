@@ -26,11 +26,17 @@ export enum Repeatedness {
   Expanded,
 }
 
+type OptionalizeUndefined<T extends {}> = {
+  [K in keyof T as undefined extends T[K] ? K : never]?: T[K];
+} & {
+  [K in keyof T as undefined extends T[K] ? never : K]: T[K];
+};
+
 export type Infer<T> =
   T extends Message<infer U>
-  ? { [K in keyof U]?: Infer<U[K]> }
+  ? OptionalizeUndefined<{ [K in keyof U]: Infer<U[K]> }>
   : T extends MessageFields
-  ? { [K in keyof T]?: Infer<T[K]> }
+  ? OptionalizeUndefined<{ [K in keyof T]: Infer<T[K]> }>
   : T extends FieldSchema<infer U, any>
   ? U
   : never;

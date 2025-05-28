@@ -157,6 +157,48 @@ const decoded = schema.decode(bytes);
 console.log(decoded instanceof Foo, decoded.toString());
 ```
 
+## Required Fields
+Protobuf itself has no concept of required fields. Any field that has its default value will be
+omitted from the wire data for extra compression. This is reflected in *hiproto* with fields
+generally being optional on the decoded messages.
+
+However, you can mark a field as `required()` to instruct *hiproto* to always populate the field
+with the default value if otherwise not present. Required fields will also be non-optional keys in
+the inferred message type to enforce intentionality of "omitted" types, i.e. you will need to
+explicitly supply the default value.
+
+The following snippet should illustrate its usage:
+
+```ts
+import hpb from '@kiruse/hiproto';
+
+const schema = hpb.message({
+  name: hpb.string(1),
+  bytes: hpb.bytes(2).required(),
+  vector: hpb.repeated.float(3).required(),
+});
+
+const foo: hpb.infer<typeof schema> = {
+  name: '',
+  bytes: new Uint8Array(),
+  vector: [1, 2, 3],
+};
+
+const encoded1 = schema.encode(foo).toShrunk().seek(0);
+const decoded1 = schema.decode(encoded1);
+
+console.log(decoded1.name); // undefined
+console.log(decoded1.bytes); // Uint8Array []
+console.log(decoded1.vector); // [1, 2, 3]
+
+const encoded2 = hpb.message({}).encode({}).toShrunk().seek(0);
+const decoded2 = schema.decode(encoded2);
+
+console.log(decoded2.name); // undefined
+console.log(decoded2.bytes); // Uint8Array []
+console.log(decoded2.vector); // []
+```
+
 ## JSON Codec
 There exists a special, non-standard yet useful schema to encode arbitrary data as a JSON-encoded
 string. This codec is simply an extension of the `string` codec, which in turn is an extension of

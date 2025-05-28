@@ -16,56 +16,58 @@ export interface Validator<T = unknown, S extends string = string> {
   length(value: T): number;
 }
 
-export interface FieldSchema<T, S extends string> extends Validator<T, S> {
-  index: number;
-  wiretype: WireType;
-  repeated: Repeatedness;
-  codec: Codec<T>;
+export interface FieldSchema<T, S extends string> extends Validator<T, S>, Omit<SchemaParameters<T, S>, 'type'> {
+  readonly wiretype: WireType
 }
 
 export interface FieldSchemaWithTransform<In, S extends string> extends FieldSchema<In, S> {
   transform: <Out>(params: TransformParameters<In, Out>) => FieldSchemaWithTransform<Out, S>;
+  required(): FieldSchemaWithTransform<Defined<In>, S>;
 }
 
+type Defined<T> = T extends undefined ? never : T;
 export type Schemas = SimpleSchemas & GenericSchemas;
 export type RepeatedSchemas = SimpleRepeatedSchemas & GenericRepeatedSchemas;
 
 type SimpleSchemaTypes = 'bool' | 'int32' | 'int64' | 'uint32' | 'uint64' | 'sint32' | 'sint64' | 'fixed32' | 'fixed64' | 'sfixed32' | 'sfixed64' | 'float' | 'double' | 'string' | 'bytes';
-type SimpleSchemas = { [K in SimpleSchemaTypes]: (index: number) => FieldSchemaWithTransform<CodecType[K], K> };
-type SimpleRepeatedSchemas = { [K in SimpleSchemaTypes]: (index: number) => FieldSchemaWithTransform<CodecType[K][], K> };
+type SimpleSchemas = { [K in SimpleSchemaTypes]: (index: number) => FieldSchemaWithTransform<CodecType[K] | undefined, K> };
+type SimpleRepeatedSchemas = { [K in SimpleSchemaTypes]: (index: number) => FieldSchemaWithTransform<CodecType[K][] | undefined, K> };
 
 interface GenericSchemas {
-  enum: <T extends number>(index: number) => FieldSchemaWithTransform<T, 'enum'>;
-  submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<Infer<T>, 'submessage'>;
-  submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U, 'submessage'>;
-  json: <T extends {}>(index: number) => FieldSchemaWithTransform<Partial<T>, 'json'>;
+  enum: <T extends number>(index: number) => FieldSchemaWithTransform<T | undefined, 'enum'>;
+  submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<Infer<T> | undefined, 'submessage'>;
+  submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U | undefined, 'submessage'>;
+  json: <T extends {}>(index: number) => FieldSchemaWithTransform<Partial<T> | undefined, 'json'>;
 };
 
 interface GenericRepeatedSchemas {
-  enum: <T extends number>(index: number) => FieldSchemaWithTransform<T[], 'enum'>;
-  submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<v.infer<T>[], 'submessage'>;
-  submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U[], 'submessage'>;
-  json: <T extends {}>(index: number) => FieldSchemaWithTransform<Partial<T>[], 'json'>;
+  enum: <T extends number>(index: number) => FieldSchemaWithTransform<T[] | undefined, 'enum'>;
+  submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<v.infer<T>[] | undefined, 'submessage'>;
+  submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U[] | undefined, 'submessage'>;
+  json: <T extends {}>(index: number) => FieldSchemaWithTransform<Partial<T>[] | undefined, 'json'>;
 };
 
 interface SchemaParameters<T, S extends string> {
   type: S;
   index: number;
   codec: Codec<T>;
-  repeated?: Repeatedness;
+  _repeated?: Repeatedness;
+  _required?: boolean;
 }
 
 function createSchema<T, S extends string>({
   type,
   codec,
   index,
-  repeated = Repeatedness.None,
+  _repeated = Repeatedness.None,
+  _required = false,
 }: SchemaParameters<T, S>): FieldSchema<T, S> {
   return {
     type,
     codec,
     index,
-    repeated,
+    _repeated,
+    _required,
     get wiretype() { return codec.wiretype; },
     length: (value) => codec.length(value),
   };
@@ -85,6 +87,7 @@ function addTransform<T, S extends string>(schema: FieldSchema<T, S>): FieldSche
   return Object.assign(schema, {
     transform: <T2>(sub: TransformParameters<T, T2>) =>
       addTransform(createSchema({ ...schema, codec: transformCodec(schema.codec, sub) })),
+    required: () => addTransform(createSchema({ ...schema, _required: true })) as any,
   });
 }
 
@@ -100,13 +103,13 @@ export const v = {
     ...Object.fromEntries(
       Object.entries(fieldSchemas).map(([key, fn]) => [
         key,
-        (index: number, ...args: any[]) => Object.assign((fn as any)(index, ...args) as any, { repeated: Repeatedness.Default }),
+        (index: number, ...args: any[]) => Object.assign((fn as any)(index, ...args) as any, { _repeated: Repeatedness.Default }),
       ]),
     ) as unknown as RepeatedSchemas,
     expanded: Object.fromEntries(
       Object.entries(fieldSchemas).map(([key, fn]) => [
         key,
-        (index: number, ...args: any[]) => Object.assign((fn as any)(index, ...args) as any, { repeated: Repeatedness.Expanded }),
+        (index: number, ...args: any[]) => Object.assign((fn as any)(index, ...args) as any, { _repeated: Repeatedness.Expanded }),
       ]),
     ) as unknown as Omit<RepeatedSchemas, 'bytes' | 'string' | 'submessage'>,
   },

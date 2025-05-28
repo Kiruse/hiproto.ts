@@ -125,7 +125,7 @@ export class Message<T extends MessageFields> implements IMessage<T, Infer<T>> {
       const schema = this.fields[field]!;
 
       if (!payload[field]) {
-        if (schema.repeated === Repeatedness.None) {
+        if (schema._repeated === Repeatedness.None) {
           payload[field] = schema.codec.default;
         } else {
           payload[field] = [];
@@ -133,12 +133,20 @@ export class Message<T extends MessageFields> implements IMessage<T, Infer<T>> {
         continue;
       }
 
-      if (schema.repeated === Repeatedness.None) {
+      if (schema._repeated === Repeatedness.None) {
         if (Array.isArray(payload[field]))
           throw new DecodeError(`Field ${field} is repeated, but schema expects a single value`);
       } else {
         if (!Array.isArray(payload[field]))
           payload[field] = [payload[field]];
+      }
+
+      if (schema._required && !payload[field]) {
+        if (schema._repeated === Repeatedness.None) {
+          payload[field] = schema.codec.default;
+        } else {
+          payload[field] = [];
+        }
       }
     }
 
@@ -229,7 +237,7 @@ function pushValue(obj: any, key: PropertyKey, value: any) {
 }
 
 function getEncodeMode(schema: FieldSchema<any, any>) {
-  switch (schema.repeated) {
+  switch (schema._repeated) {
     case Repeatedness.None:
       return EncodeMode.Single;
     case Repeatedness.Default:
