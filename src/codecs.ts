@@ -3,6 +3,8 @@ import { EncodeError } from './errors';
 import { MessageFields, Message, IMessage } from './message';
 import { Bytes, ProtoBuffer, WireType } from './protobuffer';
 
+type Defined<T> = Exclude<T, undefined>;
+
 export type CodecMap = typeof codecs;
 export type CodecFactory<T, Args extends any[]> = (index: number, ...args: Args) => Codec<T>;
 
@@ -22,8 +24,8 @@ export interface Codec<In> {
 
 export interface TransformParameters<Base, Transformed> {
   get default(): Transformed;
-  encode: (value: Transformed) => Base;
-  decode: (value: Base) => Transformed;
+  encode: (value: Transformed) => Defined<Base>;
+  decode: (value: Defined<Base>) => Transformed;
 }
 
 export function transformCodec<T1, T2>(codec: Codec<T1>, sub: TransformParameters<T1, T2>): Codec<T2> {
@@ -34,7 +36,7 @@ export function transformCodec<T1, T2>(codec: Codec<T1>, sub: TransformParameter
       codec.encode(sub.encode(value), buffer);
     },
     decode(buffer: ProtoBuffer): T2 {
-      return sub.decode(codec.decode(buffer));
+      return sub.decode(codec.decode(buffer) as Defined<T1>);
     },
     length(value: T2) {
       return codec.length(sub.encode(value));

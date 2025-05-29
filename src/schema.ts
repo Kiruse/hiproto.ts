@@ -25,7 +25,7 @@ export interface FieldSchemaWithTransform<In, S extends string> extends FieldSch
   required(): FieldSchemaWithTransform<Defined<In>, S>;
 }
 
-type Defined<T> = T extends undefined ? never : T;
+type Defined<T> = Exclude<T, undefined>;
 export type Schemas = SimpleSchemas & GenericSchemas;
 export type RepeatedSchemas = SimpleRepeatedSchemas & GenericRepeatedSchemas;
 
