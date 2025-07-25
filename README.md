@@ -60,6 +60,7 @@ Following wire format features have been implemented, or will be implemented in 
 - [x] `repeated`, extended
 - [ ] *One of*'s
 - [ ] *Last one wins*
+- [x] Variants
 - [ ] Maps
 - [ ] Groups
 - [x] Unknown fields
@@ -84,6 +85,59 @@ between *open* and *closed* enums, with *closed* enums allowing only the specifi
 Since the behavior of enums changes depending on how it's been imported and where -with respect to
 the *proto2* or *proto3* syntaxes- this technically requires the capacity to strictly define how our
 enum shall be de/encoded. This feature will be added in a future release.
+
+## Variants & Unions
+Hiproto is inspired by [zod](https://zod.dev/). Since one of TypeScript's major strengths is
+discriminated unions, zod also features a [union validator](https://zod.dev/api?id=discriminated-unions).
+However, due to the intricacies of ProtoBuf, a direct equivalent of zod's unions for Hiproto is not
+possible:
+
+The smallest possible object in protobuf is exactly 0 bytes. This object would simply translate to
+the empty object (`{}`). Protobuf is a highly permissive protocol. By default, all fields are
+optional, fields with default values are simply omitted from the wiredata, any excess fields are
+retained unmodified, and no field names are transmitted, only their indices. Thus, we need some sort
+of discriminator to help us determine how the data was meant to be interpreted.
+
+Which is exactly what `v.variants` does: It wraps your object in a lightweight submessage containing
+only bytes and a discriminator, and uses that discriminator to multiplex the variants. It is similar
+to protobuf's [`Any`](https://protobuf.dev/programming-guides/proto3/#any), except it uses an
+internal type registry to directly translate between the wrapped data and the original data.
+
+```ts
+import { hpb } from '@kiruse/hiproto';
+
+const schema = hpb.variants('type', {
+  text: hpb.message({
+    content: hpb.string(1),
+  }),
+  number: hpb.message({
+    value: hpb.int32(1),
+  }),
+});
+
+// Text variant
+const textPayload = {
+  type: 'text',
+  content: 'Hello world',
+};
+
+const encoded = schema.encode(textPayload);
+const decoded = schema.decode(encoded);
+// decoded = { type: 'text', content: 'Hello world' }
+
+// Number variant
+const numberPayload = {
+  type: 'number',
+  value: 42,
+};
+
+const encoded2 = schema.encode(numberPayload);
+const decoded2 = schema.decode(encoded2);
+// decoded2 = { type: 'number', value: 42 }
+```
+
+**Note** that the `0` property is defined as the default variant. This will be used when the field
+containing your variant is not present.
 
 ## Unknown Fields
 Unknown fields are preserved on your decoded object using the `UnknownFields` symbol:

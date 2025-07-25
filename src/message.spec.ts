@@ -340,4 +340,33 @@ describe('messages', () => {
       flags: 0,
     });
   });
+
+  test('variants', () => {
+    const schema = v.variants('type', {
+      foo: v.message({
+        value: v.string(1),
+      }),
+      bar: v.message({
+        value: v.int32(1),
+      }),
+    });
+
+    let payload: v.infer<typeof schema> = {
+      type: 'foo',
+      value: 'hello',
+    };
+
+    debugger;
+    let encoded = schema.encode(payload).toShrunk().seek(0);
+    console.log(encoded.toShrunk().toHex());
+    expect(schema.decode(encoded)).toMatchObject(payload);
+
+    payload = {
+      type: 'bar',
+      value: 42,
+    };
+
+    encoded = schema.encode(payload).toShrunk().seek(0);
+    expect(schema.decode(encoded)).toMatchObject(payload);
+  });
 });

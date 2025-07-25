@@ -1,8 +1,8 @@
 import { codecs, transformCodec, type TransformParameters } from './codecs';
 import type { Codec, CodecFactory, CodecType } from './codecs';
-import { InferType, Repeatedness, type Infer } from './commons';
+import { InferType, IVariants, Repeatedness, ToVariant, type Infer } from './commons';
 import { IMessage, Message, type MessageFields } from './message';
-import { WireType } from './protobuffer';
+import { ProtoBuffer, WireType } from './protobuffer';
 
 export interface Validator<T = unknown, S extends string = string> {
   [InferType]?: T;
@@ -26,6 +26,7 @@ export interface FieldSchemaWithTransform<In, S extends string> extends FieldSch
 }
 
 type Defined<T> = Exclude<T, undefined>;
+
 export type Schemas = SimpleSchemas & GenericSchemas;
 export type RepeatedSchemas = SimpleRepeatedSchemas & GenericRepeatedSchemas;
 
@@ -34,6 +35,7 @@ type SimpleSchemas = { [K in SimpleSchemaTypes]: (index: number) => FieldSchemaW
 type SimpleRepeatedSchemas = { [K in SimpleSchemaTypes]: (index: number) => FieldSchemaWithTransform<CodecType[K][] | undefined, K> };
 
 interface GenericSchemas {
+  literal: <T extends string>(index: number, value: T) => FieldSchemaWithTransform<T, 'literal'>;
   enum: <T extends number>(index: number) => FieldSchemaWithTransform<T | undefined, 'enum'>;
   submessage<T extends MessageFields>(index: number, fields: T): FieldSchemaWithTransform<Infer<T> | undefined, 'submessage'>;
   submessage<T extends MessageFields, U>(index: number, msg: IMessage<T, U>): FieldSchemaWithTransform<U | undefined, 'submessage'>;
@@ -97,6 +99,57 @@ export const fieldSchemas = Object.fromEntries(
 
 export const v = {
   message: <T extends MessageFields>(fields: T) => new Message<T>(fields),
+  /** Variants are similar to [protobuf's `Any`](https://protobuf.dev/programming-guides/proto3/#any)
+   * except instead of a `type_url` string, it uses a numeric enum. The `0` property is used as the
+   * default variant.
+   *
+   * *Note:* Variants are achieved through a `Message.transform` call.
+   */
+  variants: <Prop extends string, T extends Record<string | number, IMessage<any, any>>>(typeProp: Prop, variants: T) => {
+    const subcodecs = Object.fromEntries(
+      Object.entries(variants).map(([key, value]) => [key, codecs.submessage(value)]),
+    ) as Record<keyof T, Codec<ToVariant<Prop, Exclude<keyof T, symbol>, T[Exclude<keyof T, symbol>]>>>;
+    return Object.assign(
+      new Message({
+        typename: v.string(1),
+        typeid: v.int32(2),
+        value: v.bytes(3),
+      }).transform<Infer<IVariants<Prop, T>>>({
+        encode: (value) => {
+          const ty = value[typeProp];
+          const codec = subcodecs[ty];
+          if (!codec)
+            throw new Error(`No codec found for variant ${ty}`);
+
+          const buf = new ProtoBuffer();
+          codec.encode(value, buf);
+
+          return {
+            value: buf.toShrunk().bytes(),
+            typename: typeof ty === 'string' ? ty : undefined,
+            typeid: typeof ty === 'number' ? ty : undefined,
+          };
+        },
+        decode: (value) => {
+          const ty = value.typename ?? value.typeid ?? 0;
+          const codec = subcodecs[ty];
+          if (!codec)
+            throw new Error(`No codec found for variant ${ty}`);
+          return {
+            [typeProp]: ty,
+            ...codec.decode(new ProtoBuffer(value.value)),
+          };
+        },
+        get default() {
+          return {
+            [typeProp]: 0,
+            ...subcodecs[0]!.default,
+          };
+        },
+      }),
+      { variants, prop: typeProp },
+    ) satisfies IVariants<Prop, T>;
+  },
   ...fieldSchemas,
   repeated: {
     // NOTE: it's easiest to just ignore the TypeScript bits and pretend everything is correct

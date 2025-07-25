@@ -310,6 +310,7 @@ export const codecs = {
     get default() { return new Uint8Array(0); },
     isDefault(value: Uint8Array) { return value.length === 0; },
     encode(value: Uint8Array, buffer: ProtoBuffer) {
+      if (value instanceof Bytes) value = value.toUint8Array();
       if (value.length > 0xffffffff)
         throw new EncodeError(`Bytes are too long: ${value.length} bytes, max is ${0xffffffff} (32 bits)`);
       buffer.writeVarint(value.length);
@@ -325,6 +326,21 @@ export const codecs = {
       return ProtoBuffer.varintLength(value.length) + value.length;
     }
   } as Codec<Uint8Array | Bytes>,
+
+  literal: <T extends string>(value: T): Codec<T> => ({
+    get wiretype() { return codecs.string.wiretype; },
+    get default() { return value; },
+    isDefault(value: T) { return value === value; },
+    encode(value: T, buffer: ProtoBuffer) {
+      return codecs.string.encode(value, buffer);
+    },
+    decode(buffer: ProtoBuffer) {
+      return codecs.string.decode(buffer) as T;
+    },
+    length(value: T) {
+      return codecs.string.length(value);
+    },
+  }),
 
   submessage: <T extends MessageFields, U = Infer<T>>(fields: T | IMessage<T, U>): Codec<U> => {
     const isIMessage = (value: any): value is IMessage<T, U> => InferType in value && value['type'] === 'message' && 'fields' in value;

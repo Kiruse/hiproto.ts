@@ -1,7 +1,18 @@
-import type { Message, MessageFields } from './message';
+import type { IMessage, MessageFields } from './message';
 import type { FieldSchema } from './schema';
 
 export const InferType = '@@hiprotoInferType@@';
+
+export interface IVariants<Prop extends string, T extends Record<string | number, IMessage<any, any>>> {
+  /** Name of the property that discriminates the variants. */
+  prop: Prop;
+  /** Variant message schemas. */
+  variants: T;
+};
+
+export type ToVariant<Prop extends string, K extends string | number, T> = T extends IMessage<any, infer U>
+  ? U & { [P in Prop]: K }
+  : never;
 
 /** Repeatedness indicates whether a field should be an array or not. The different modes of
  * Repeatedness only affect the encoding process. Typically, `Default` should suffice for all
@@ -33,7 +44,9 @@ type OptionalizeUndefined<T extends {}> = {
 };
 
 export type Infer<T> =
-  T extends Message<infer U>
+  T extends IVariants<infer Prop, infer U>
+  ? { [K in Exclude<keyof U, symbol>]: ToVariant<Prop, K, U[K]> }[Exclude<keyof U, symbol>]
+  : T extends IMessage<any, infer U>
   ? OptionalizeUndefined<{ [K in keyof U]: Infer<U[K]> }>
   : T extends MessageFields
   ? OptionalizeUndefined<{ [K in keyof T]: Infer<T[K]> }>
