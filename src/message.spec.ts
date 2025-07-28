@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { v } from './schema';
 import { Bytes, ProtoBuffer } from './protobuffer';
-import { IMessage } from './message';
+import { v } from './schema';
 
 describe('messages', () => {
   test('default values', () => {
@@ -289,7 +288,7 @@ describe('messages', () => {
       }),
     });
 
-    const payload = { // 48 + 271 = 319 bytes
+    const payload: v.infer<typeof schema> = { // 48 + 271 = 319 bytes
       sender: 'neutron15fa97l48ru95cks5xj4hd8l5xy6vctp2p38mls', // 48 bytes
       metadata: { // 3 (header + 2 bytes len) + 84 + 83 + 62 + 7 + 25 + 7 = 271 bytes
         description: 'As the name suggests, this is just another test token. Nothing more, nothing less.', // 84 bytes
@@ -368,5 +367,54 @@ describe('messages', () => {
 
     encoded = schema.encode(payload).toShrunk().seek(0);
     expect(schema.decode(encoded)).toMatchObject(payload);
+  });
+
+  test('large', () => {
+    const schema = v.message({
+      dimensions: v.uint32(1),
+      embeddings: v.repeated.submessage(2, {
+        id: v.string(1),
+        vector: v.repeated.float(2),
+      }),
+    });
+
+    const payload: v.infer<typeof schema> = {
+      dimensions: 1024, // 2 bytes + 1 byte header
+      embeddings: [
+        { // 3 bytes ID + 4099 bytes vector + 2 bytes len + 1 byte header
+          id: '1', // 1 byte + 1 byte len + 1 byte header
+          vector: Array.from({ length: 1024 }, () => Math.random()), // 1024 * 4 bytes + 2 bytes len + 1 byte header
+        },
+        { // 3 bytes ID + 4099 bytes vector + 2 bytes len + 1 byte header
+          id: '2', // 1 byte + 1 byte len + 1 byte header
+          vector: Array.from({ length: 1024 }, () => Math.random()), // 1024 * 4 bytes + 2 bytes len + 1 byte header
+        },
+        { // 3 bytes ID + 4099 bytes vector + 2 bytes len + 1 byte header
+          id: '3', // 1 byte + 1 byte len + 1 byte header
+          vector: Array.from({ length: 1024 }, () => Math.random()), // 1024 * 4 bytes + 2 bytes len + 1 byte header
+        },
+      ],
+    };
+
+    const encoded = schema.encode(payload).toShrunk().seek(0);
+    expect(schema.length(payload)).toBe(3 + (3 + 3 + 4099) * 3);
+
+    const decoded = schema.decode(encoded);
+    expect(decoded.dimensions).toBe(payload.dimensions!);
+    expect(decoded.embeddings).toBeDefined();
+    expect(decoded.embeddings).toHaveLength(payload.embeddings!.length);
+
+    for (let i = 0; i < payload.embeddings!.length; i++) {
+      const payloadEmbedding = payload.embeddings![i]!;
+      const decodedEmbedding = decoded.embeddings![i]!;
+
+      expect(decodedEmbedding.id).toBe(payloadEmbedding.id!);
+      expect(decodedEmbedding.vector).toBeDefined();
+      expect(decodedEmbedding.vector).toHaveLength(payloadEmbedding.vector!.length);
+
+      for (let j = 0; j < payloadEmbedding.vector!.length; j++) {
+        expect(Math.abs(payloadEmbedding.vector![j]! - decodedEmbedding.vector![j]!)).toBeLessThan(1e-6);
+      }
+    }
   });
 });

@@ -170,10 +170,8 @@ export class Message<T extends MessageFields> implements IMessage<T, Infer<T>> {
             throw new DecodeError(`Field ${key.toString()} is packed, but value is not an array`);
           if (values.length === 0) break;
           // extra 1 byte for the field header + byte length, packed
-          length += 2;
-          for (const item of values) {
-            length += schema.length(item);
-          }
+          const byteLength = ProtoBuffer.packedLength(schema.wiretype, values);
+          length += 1 + ProtoBuffer.varintLength(byteLength) + byteLength;
           break;
         }
         case EncodeMode.Expanded: {

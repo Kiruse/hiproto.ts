@@ -455,6 +455,23 @@ export class ProtoBuffer {
     return this.varintLength(getZigzag(BigInt(value)));
   }
 
+  /** Computes the length of a packed array of primitives. */
+  static packedLength(wiretype: WireType, values: any[]): number {
+    switch (wiretype) {
+      case WireType.Varint:
+        return values.reduce((acc, value) => acc + this.varintLength(value), 0);
+      case WireType.I32:
+        return values.length * 4;
+      case WireType.I64:
+        return values.length * 8;
+      case WireType.Len:
+        throw new Error('Packed length is not supported for length-delimited fields');
+      case WireType.SGroup:
+      case WireType.EGroup:
+        throw new Error('Packed length Group types are not supported');
+    }
+  }
+
   get offset() {
     return this.#offset;
   }

@@ -1,4 +1,4 @@
-import type { IMessage, MessageFields } from './message';
+import type { IMessage, Message, MessageFields } from './message';
 import type { FieldSchema } from './schema';
 
 export const InferType = '@@hiprotoInferType@@';
@@ -46,6 +46,8 @@ type OptionalizeUndefined<T extends {}> = {
 export type Infer<T> =
   T extends IVariants<infer Prop, infer U>
   ? { [K in Exclude<keyof U, symbol>]: ToVariant<Prop, K, U[K]> }[Exclude<keyof U, symbol>]
+  : T extends Message<infer U>
+  ? OptionalizeUndefined<{ [K in keyof U]: Infer<U[K]> }>
   : T extends IMessage<any, infer U>
   ? OptionalizeUndefined<{ [K in keyof U]: Infer<U[K]> }>
   : T extends MessageFields
