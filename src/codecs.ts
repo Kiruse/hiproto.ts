@@ -387,8 +387,8 @@ export const codecs = {
   json: <T extends {}>(): Codec<Partial<T>> => {
     return {
       get wiretype() { return WireType.Len; },
-      get default() { return {}; },
-      isDefault(value: T) { return Object.keys(value).length === 0; },
+      get default() { return null as any; },
+      isDefault(value: T) { return value === null; },
 
       encode(value: T, buffer: ProtoBuffer) {
         return codecs.string.encode(JSON.stringify(value), buffer);
