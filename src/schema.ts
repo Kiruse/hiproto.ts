@@ -21,11 +21,12 @@ export interface FieldSchema<T, S extends string> extends Validator<T, S>, Omit<
 }
 
 export interface FieldSchemaWithTransform<In, S extends string> extends FieldSchema<In, S> {
-  transform: <Out>(params: TransformParameters<In, Out>) => FieldSchemaWithTransform<Out, S>;
+  transform: <Out>(params: TransformParameters<In, Out>) => FieldSchemaWithTransform<KeepUndefined<In, Out>, S>;
   required(): FieldSchemaWithTransform<Defined<In>, S>;
 }
 
 type Defined<T> = Exclude<T, undefined>;
+type KeepUndefined<In, Out> = In extends undefined ? Out | undefined : Out;
 
 export type Schemas = SimpleSchemas & GenericSchemas;
 export type RepeatedSchemas = SimpleRepeatedSchemas & GenericRepeatedSchemas;
@@ -87,8 +88,8 @@ function getSchemaFactory<T1, Args extends any[]>(
 
 function addTransform<T, S extends string>(schema: FieldSchema<T, S>): FieldSchemaWithTransform<T, S> {
   return Object.assign(schema, {
-    transform: <T2>(sub: TransformParameters<T, T2>) =>
-      addTransform(createSchema({ ...schema, codec: transformCodec(schema.codec, sub) })),
+    transform: (<T2>(sub: TransformParameters<T, T2>) =>
+      addTransform(createSchema({ ...schema, codec: transformCodec(schema.codec, sub) }))) as any,
     required: () => addTransform(createSchema({ ...schema, _required: true })) as any,
   });
 }
